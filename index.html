@@ -328,14 +328,14 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <script>
     const MAP_IMAGE = "gta-map.jpg";
     const AUTO_REFRESH_MS = 15000;
     const DEFAULT_ZONE_MIN_SIZE = 15;
 
-    let supabase = null;
+    let db = null;
     let map = null;
     let zonesLayer = null;
     let markersLayer = null;
@@ -528,21 +528,21 @@
     }
 
     async function loadAllData(showStatus = true) {
-      if (!supabase) {
+      if (!db) {
         setStatus("Nincs aktív adatbázis kapcsolat.", true);
         return false;
       }
 
       if (showStatus) setStatus("Adatok betöltése...");
 
-      const zonesRes = await supabase.from("zones").select("*").order("id", { ascending: true });
+      const zonesRes = await db.from("zones").select("*").order("id", { ascending: true });
       if (zonesRes.error) {
         console.error(zonesRes.error);
         setStatus("Hiba a zones betöltésekor. Ellenőrizd az RLS-t és az SQL táblát.", true);
         return false;
       }
 
-      const markersRes = await supabase.from("markers").select("*").order("id", { ascending: true });
+      const markersRes = await db.from("markers").select("*").order("id", { ascending: true });
       if (markersRes.error) {
         console.error(markersRes.error);
         setStatus("Hiba a markers betöltésekor. Ellenőrizd az RLS-t és az SQL táblát.", true);
@@ -575,7 +575,7 @@
       }
 
       try {
-        supabase = window.supabase.createClient(url, key);
+        db = window.supabase.createClient(url, key);
         saveLocalConfig();
 
         const ok = await loadAllData(false);
@@ -603,7 +603,7 @@
     }
 
     async function createZoneFromBounds(a, b) {
-      if (!supabase) {
+      if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
         return;
       }
@@ -621,7 +621,7 @@
 
       setStatus("Zóna mentése...");
 
-      const res = await supabase.from("zones").insert({
+      const res = await db.from("zones").insert({
         x: x,
         y: y,
         width: width,
@@ -643,7 +643,7 @@
     }
 
     async function createMarker(latlng) {
-      if (!supabase) {
+      if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
         return;
       }
@@ -652,7 +652,7 @@
 
       setStatus("Ikon mentése...");
 
-      const res = await supabase.from("markers").insert({
+      const res = await db.from("markers").insert({
         x: latlng.lng,
         y: latlng.lat,
         icon_type: markerTypeEl.value,
@@ -773,11 +773,11 @@
     }
 
     window.deleteZone = async function (id) {
-      if (!supabase) return;
+      if (!db) return;
       if (!confirm("Biztos törlöd ezt a zónát?")) return;
 
       setStatus("Zóna törlése...");
-      const res = await supabase.from("zones").delete().eq("id", id);
+      const res = await db.from("zones").delete().eq("id", id);
 
       if (res.error) {
         console.error(res.error);
@@ -790,11 +790,11 @@
     };
 
     window.deleteMarker = async function (id) {
-      if (!supabase) return;
+      if (!db) return;
       if (!confirm("Biztos törlöd ezt az ikont?")) return;
 
       setStatus("Ikon törlése...");
-      const res = await supabase.from("markers").delete().eq("id", id);
+      const res = await db.from("markers").delete().eq("id", id);
 
       if (res.error) {
         console.error(res.error);
