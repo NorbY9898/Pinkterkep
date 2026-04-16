@@ -36,6 +36,7 @@
       border-right: 1px solid rgba(255,255,255,0.08);
       padding: 16px;
       overflow-y: auto;
+      overflow-x: hidden;
     }
 
     .brand {
@@ -157,12 +158,14 @@
       color: #c8d2dc;
       min-height: 40px;
       white-space: pre-line;
+      line-height: 1.5;
     }
 
     .map-wrap {
       width: 100%;
       height: 100vh;
       position: relative;
+      min-width: 0;
     }
 
     #map {
@@ -208,6 +211,10 @@
     }
 
     @media (max-width: 940px) {
+      body {
+        overflow: auto;
+      }
+
       .app {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
@@ -348,6 +355,7 @@
     let map = null;
     let mapBounds = null;
     let mapReady = false;
+    let ignoreNextClick = false;
 
     const supabaseUrlEl = document.getElementById("supabaseUrl");
     const supabaseKeyEl = document.getElementById("supabaseKey");
@@ -499,6 +507,7 @@
           [zone.y, zone.x],
           [zone.y + zone.height, zone.x + zone.width]
         ], getZoneStyle(zone.color));
+
         rect.bindPopup(zonePopupHtml(zone));
         rect.addTo(zonesLayer);
       });
@@ -512,15 +521,16 @@
         const m = L.marker([marker.y, marker.x], {
           icon: createEmojiIcon(marker.icon_type)
         });
+
         m.bindPopup(markerPopupHtml(marker));
         m.addTo(markersLayer);
       });
     }
 
-    async function loadAllData() {
+    async function loadAllData(showSuccess = true) {
       if (!supabase) {
         setStatus("Nincs aktív adatbázis kapcsolat.", true);
-        return;
+        return false;
       }
 
       setStatus("Adatok betöltése...");
@@ -533,18 +543,23 @@
       if (zonesRes.error) {
         console.error(zonesRes.error);
         setStatus("Hiba a zónák betöltésekor. Ellenőrizd a zones táblát és az RLS-t.", true);
-        return;
+        return false;
       }
 
       if (markersRes.error) {
         console.error(markersRes.error);
         setStatus("Hiba az ikonok betöltésekor. Ellenőrizd a markers táblát és az RLS-t.", true);
-        return;
+        return false;
       }
 
       renderZones(zonesRes.data || []);
       renderMarkers(markersRes.data || []);
-      setStatus(`Betöltve: ${(zonesRes.data || []).length} zóna, ${(markersRes.data || []).length} ikon.`);
+
+      if (showSuccess) {
+        setStatus(`Betöltve: ${(zonesRes.data || []).length} zóna, ${(markersRes.data || []).length} ikon.`);
+      }
+
+      return true;
     }
 
     async function connectSupabase() {
@@ -553,20 +568,28 @@
 
       if (!url || !key) {
         setStatus("Hiányzik a Supabase URL vagy a publishable key.", true);
-        return;
+        return false;
       }
 
       try {
         supabase = window.supabase.createClient(url, key);
         saveLocalConfig();
 
-        await loadAllData();
+        const ok = await loadAllData(false);
+        if (!ok) return false;
 
         if (refreshTimer) clearInterval(refreshTimer);
-        refreshTimer = setInterval(loadAllData, AUTO_REFRESH_MS);
+        refreshTimer = setInterval(() => loadAllData(false), AUTO_REFRESH_MS);
+
+        const zonesCount = zonesLayer ? zonesLayer.getLayers().length : 0;
+        const markersCount = markersLayer ? markersLayer.getLayers().length : 0;
+        setStatus(`Sikeres csatlakozás. Betöltve: ${zonesCount} zóna, ${markersCount} ikon.`);
+
+        return true;
       } catch (error) {
         console.error(error);
         setStatus("Nem sikerült csatlakozni a Supabase-hez.", true);
+        return false;
       }
     }
 
@@ -608,7 +631,7 @@
         return;
       }
 
-      await loadAllData();
+      await loadAllData(false);
       setStatus("A zóna el lett mentve.");
     }
 
@@ -638,7 +661,7 @@
         return;
       }
 
-      await loadAllData();
+      await loadAllData(false);
       setStatus("Az ikon el lett mentve.");
     }
 
@@ -670,6 +693,7 @@
             if (currentMode !== "zone") return;
             isDrawingZone = true;
             drawStart = e.latlng;
+            ignoreNextClick = false;
 
             if (previewRect) {
               map.removeLayer(previewRect);
@@ -686,6 +710,7 @@
 
           map.on("mouseup", async (e) => {
             if (currentMode !== "zone" || !isDrawingZone || !drawStart) return;
+
             isDrawingZone = false;
 
             if (previewRect) {
@@ -693,11 +718,24 @@
               previewRect = null;
             }
 
-            await createZoneFromBounds(drawStart, e.latlng);
+            const movedEnough =
+              Math.abs(drawStart.lng - e.latlng.lng) >= DEFAULT_ZONE_MIN_SIZE ||
+              Math.abs(drawStart.lat - e.latlng.lat) >= DEFAULT_ZONE_MIN_SIZE;
+
+            if (movedEnough) {
+              ignoreNextClick = true;
+              await createZoneFromBounds(drawStart, e.latlng);
+            }
+
             drawStart = null;
           });
 
           map.on("click", async (e) => {
+            if (ignoreNextClick) {
+              ignoreNextClick = false;
+              return;
+            }
+
             if (currentMode === "marker") {
               await createMarker(e.latlng);
             }
@@ -705,11 +743,11 @@
 
           window.addEventListener("resize", () => {
             if (map) {
-              setTimeout(() => map.invalidateSize(), 100);
+              setTimeout(() => map.invalidateSize(), 120);
             }
           });
 
-          setTimeout(() => map.invalidateSize(), 150);
+          setTimeout(() => map.invalidateSize(), 180);
 
           mapReady = true;
           setMode(currentMode);
@@ -720,7 +758,7 @@
           reject(new Error("A gta-map.jpg nem tölthető be."));
         };
 
-        img.src = MAP_IMAGE;
+        img.src = MAP_IMAGE + "?v=" + Date.now();
       });
     }
 
@@ -728,7 +766,7 @@
       btn.addEventListener("click", () => setMode(btn.dataset.mode));
     });
 
-    reloadBtn.addEventListener("click", loadAllData);
+    reloadBtn.addEventListener("click", () => loadAllData(true));
 
     resetFormBtn.addEventListener("click", () => {
       labelInput.value = "";
@@ -756,7 +794,7 @@
         return;
       }
 
-      await loadAllData();
+      await loadAllData(false);
       setStatus("A zóna törölve lett.");
     };
 
@@ -774,7 +812,7 @@
         return;
       }
 
-      await loadAllData();
+      await loadAllData(false);
       setStatus("Az ikon törölve lett.");
     };
 
