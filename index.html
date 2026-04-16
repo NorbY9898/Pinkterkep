@@ -15,7 +15,9 @@
       width: 100%;
       height: 100%;
       font-family: Arial, Helvetica, sans-serif;
-      background: #0d1117;
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.05), transparent 28%),
+        linear-gradient(180deg, #12171d 0%, #0c1116 100%);
       color: #f5f5f5;
     }
 
@@ -23,25 +25,35 @@
 
     .app {
       display: grid;
-      grid-template-columns: 350px 1fr;
+      grid-template-columns: 380px 1fr;
       width: 100%;
       height: 100vh;
     }
 
     .sidebar {
-      background: #151b23;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 20%),
+        linear-gradient(180deg, #151b23 0%, #10161d 100%);
       border-right: 1px solid rgba(255,255,255,0.08);
       padding: 16px;
       overflow-y: auto;
       overflow-x: hidden;
+      box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
     }
 
-    .brand { margin-bottom: 14px; }
+    .brand {
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.06);
+    }
 
     .brand h1 {
       margin: 0 0 4px;
-      font-size: 24px;
-      line-height: 1.2;
+      font-size: 28px;
+      line-height: 1.1;
+      letter-spacing: 0.2px;
     }
 
     .brand p {
@@ -51,29 +63,25 @@
     }
 
     .panel {
-      background: #1b2430;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
       border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px;
+      border-radius: 16px;
       padding: 14px;
       margin-bottom: 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.20);
     }
 
     .panel h2 {
       margin: 0 0 10px;
       font-size: 16px;
+      letter-spacing: 0.2px;
     }
 
     .row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-    }
-
-    .row-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
     }
 
     label {
@@ -88,9 +96,15 @@
       border: 1px solid rgba(255,255,255,0.12);
       background: #0f141b;
       color: #fff;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 10px 12px;
       font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(57,217,138,0.45);
+      box-shadow: 0 0 0 3px rgba(57,217,138,0.08);
     }
 
     textarea {
@@ -100,7 +114,10 @@
 
     button {
       cursor: pointer;
-      transition: 0.2s ease;
+      transition: 0.18s ease;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+        #0f141b;
     }
 
     button:hover {
@@ -117,7 +134,9 @@
     .tool-button.active,
     .toggle-button.active {
       outline: 2px solid #2ecc71;
-      background: #13251b;
+      background:
+        linear-gradient(180deg, rgba(57,217,138,0.20), rgba(57,217,138,0.08)),
+        #13251b;
     }
 
     .small-buttons {
@@ -144,6 +163,7 @@
       height: 14px;
       border-radius: 4px;
       display: inline-block;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset;
     }
 
     .dot.green { background: #39d98a; }
@@ -153,7 +173,7 @@
     .status {
       margin-top: 10px;
       padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: 12px;
       background: #0f141b;
       border: 1px solid rgba(255,255,255,0.08);
       font-size: 13px;
@@ -168,6 +188,7 @@
       height: 100vh;
       min-width: 0;
       position: relative;
+      background: #0a0f14;
     }
 
     #map {
@@ -180,7 +201,7 @@
       width: 34px;
       height: 34px;
       border-radius: 50%;
-      background: rgba(12,17,22,0.92);
+      background: rgba(12,17,22,0.94);
       border: 1px solid rgba(255,255,255,0.18);
       display: flex;
       align-items: center;
@@ -211,14 +232,6 @@
       margin-top: 10px;
     }
 
-    .hidden {
-      display: none !important;
-    }
-
-    .readonly-field {
-      opacity: 0.8;
-    }
-
     .pill {
       display: inline-block;
       padding: 4px 8px;
@@ -236,25 +249,104 @@
       background: rgba(57,217,138,0.12);
     }
 
-    @media (max-width: 940px) {
-      body { overflow: auto; }
+    .list-wrap {
+      display: grid;
+      gap: 8px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
 
+    .list-item {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .list-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .list-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .list-sub {
+      font-size: 12px;
+      color: #b7c1cb;
+      line-height: 1.45;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0f141b;
+      white-space: nowrap;
+    }
+
+    .tag.green {
+      color: #9af0bf;
+      border-color: rgba(57,217,138,0.35);
+      background: rgba(57,217,138,0.08);
+    }
+
+    .tag.yellow {
+      color: #ffe39a;
+      border-color: rgba(255,209,102,0.35);
+      background: rgba(255,209,102,0.08);
+    }
+
+    .tag.red {
+      color: #ffb0b0;
+      border-color: rgba(255,107,107,0.35);
+      background: rgba(255,107,107,0.08);
+    }
+
+    .list-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .empty-note {
+      color: #aeb9c4;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 0;
+    }
+
+    @media (max-width: 1050px) {
       .app {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
       }
 
       .sidebar {
-        max-height: 46vh;
+        max-height: 48vh;
         border-right: 0;
         border-bottom: 1px solid rgba(255,255,255,0.08);
       }
 
       .map-wrap {
-        height: 54vh;
+        height: 52vh;
       }
+    }
 
-      .row, .row-3 {
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+
+      .row, .small-buttons, .tool-grid, .list-actions {
         grid-template-columns: 1fr;
       }
     }
@@ -270,28 +362,6 @@
 
       <div class="panel">
         <h2>
-          Kapcsolat / adatbázis
-          <span id="configModePill" class="pill">rejtett</span>
-        </h2>
-
-        <div class="small-buttons" style="margin-top:0;margin-bottom:10px;">
-          <button id="toggleConfigBtn" class="toggle-button">Supabase mezők mutatása</button>
-          <button id="connectBtn">Kapcsolódás</button>
-        </div>
-
-        <div id="configFields" class="hidden">
-          <label>Supabase URL</label>
-          <input id="supabaseUrl" type="text" value="https://mypjldhrwovbuhwzmsw.supabase.co" class="readonly-field" />
-
-          <label>Supabase publishable key</label>
-          <textarea id="supabaseKey" class="readonly-field">sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ</textarea>
-        </div>
-
-        <div class="hint">A mezők alapból rejtve vannak, de ugyanúgy működik a kapcsolat.</div>
-      </div>
-
-      <div class="panel">
-        <h2>
           Szerkesztés
           <span id="editModePill" class="pill">kikapcsolva</span>
         </h2>
@@ -302,8 +372,8 @@
         </div>
 
         <div class="hint">
-          Szerkesztő mód nélkül csak nézni és megnyitni tudsz.  
-          Szerkesztő módban lehet zónát rajzolni, ikont lerakni, törölni.
+          Szerkesztő módban lehet zónát rajzolni, ikont lerakni és törölni.  
+          Kikapcsolva csak megtekintésre szolgál.
         </div>
       </div>
 
@@ -386,6 +456,11 @@
       </div>
 
       <div class="panel">
+        <h2>Jelöléslista</h2>
+        <div id="itemsList" class="list-wrap"></div>
+      </div>
+
+      <div class="panel">
         <h2>Jelmagyarázat</h2>
         <div class="legend">
           <div class="legend-item"><span class="dot green"></span> Felkutatva / biztonságos</div>
@@ -419,6 +494,9 @@
     const AUTO_REFRESH_MS = 15000;
     const DEFAULT_ZONE_MIN_SIZE = 15;
 
+    const SUPABASE_URL = "https://mypjldhrwovbuhwzmsw.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ";
+
     let db = null;
     let map = null;
     let zonesLayer = null;
@@ -431,35 +509,27 @@
     let ignoreNextClick = false;
     let refreshTimer = null;
     let editMode = false;
-    let showConfig = false;
 
     let zonesData = [];
     let markersData = [];
 
-    const supabaseUrlEl = document.getElementById("supabaseUrl");
-    const supabaseKeyEl = document.getElementById("supabaseKey");
     const authorInput = document.getElementById("authorInput");
     const labelInput = document.getElementById("labelInput");
     const noteInput = document.getElementById("noteInput");
     const zoneColorEl = document.getElementById("zoneColor");
     const markerTypeEl = document.getElementById("markerType");
-    const connectBtn = document.getElementById("connectBtn");
     const reloadBtn = document.getElementById("reloadBtn");
     const resetFormBtn = document.getElementById("resetFormBtn");
     const clearFiltersBtn = document.getElementById("clearFiltersBtn");
     const statusBox = document.getElementById("statusBox");
     const toolButtons = document.querySelectorAll(".tool-button");
     const toggleEditBtn = document.getElementById("toggleEditBtn");
-    const toggleConfigBtn = document.getElementById("toggleConfigBtn");
     const editModePill = document.getElementById("editModePill");
-    const configModePill = document.getElementById("configModePill");
-    const configFields = document.getElementById("configFields");
     const zoneFilterEl = document.getElementById("zoneFilter");
     const markerFilterEl = document.getElementById("markerFilter");
+    const itemsList = document.getElementById("itemsList");
 
     const STORAGE_KEYS = {
-      url: "gta_map_supabase_url",
-      key: "gta_map_supabase_key",
       author: "gta_map_author"
     };
 
@@ -477,18 +547,11 @@
     }
 
     function saveLocalConfig() {
-      localStorage.setItem(STORAGE_KEYS.url, supabaseUrlEl.value.trim());
-      localStorage.setItem(STORAGE_KEYS.key, supabaseKeyEl.value.trim());
       localStorage.setItem(STORAGE_KEYS.author, authorInput.value.trim());
     }
 
     function restoreLocalConfig() {
-      const savedUrl = localStorage.getItem(STORAGE_KEYS.url);
-      const savedKey = localStorage.getItem(STORAGE_KEYS.key);
       const savedAuthor = localStorage.getItem(STORAGE_KEYS.author);
-
-      if (savedUrl) supabaseUrlEl.value = savedUrl;
-      if (savedKey) supabaseKeyEl.value = savedKey;
       if (savedAuthor) authorInput.value = savedAuthor;
     }
 
@@ -546,14 +609,6 @@
       editModePill.textContent = editMode ? "bekapcsolva" : "kikapcsolva";
       editModePill.classList.toggle("on", editMode);
       toggleEditBtn.classList.toggle("active", editMode);
-    }
-
-    function updateConfigUi() {
-      configFields.classList.toggle("hidden", !showConfig);
-      configModePill.textContent = showConfig ? "látható" : "rejtett";
-      configModePill.classList.toggle("on", showConfig);
-      toggleConfigBtn.classList.toggle("active", showConfig);
-      toggleConfigBtn.textContent = showConfig ? "Supabase mezők elrejtése" : "Supabase mezők mutatása";
     }
 
     function setMode(mode) {
@@ -664,9 +719,80 @@
       });
     }
 
+    function buildListItemZone(zone) {
+      const colorClass = zone.color === "green" ? "green" : zone.color === "yellow" ? "yellow" : "red";
+      const div = document.createElement("div");
+      div.className = "list-item";
+
+      div.innerHTML =
+        '<div class="list-top">' +
+          '<div class="list-title">🟥 Zóna</div>' +
+          '<span class="tag ' + colorClass + '">' + escapeHtml(zone.color) + '</span>' +
+        '</div>' +
+        '<div class="list-sub">' +
+          'Címke: ' + escapeHtml(zone.label || "-") + '<br>' +
+          'Jelölte: ' + escapeHtml(zone.author || "ismeretlen") + '<br>' +
+          'Megjegyzés: ' + escapeHtml(zone.note || "-") +
+        '</div>' +
+        '<div class="list-actions">' +
+          '<button data-action="focus-zone" data-id="' + zone.id + '">Megnyitás</button>' +
+          (editMode ? '<button data-action="delete-zone" data-id="' + zone.id + '">Törlés</button>' : "") +
+        '</div>';
+
+      return div;
+    }
+
+    function buildListItemMarker(marker) {
+      const div = document.createElement("div");
+      div.className = "list-item";
+
+      div.innerHTML =
+        '<div class="list-top">' +
+          '<div class="list-title">' + escapeHtml(getMarkerEmoji(marker.icon_type)) + ' Ikon</div>' +
+          '<span class="tag">' + escapeHtml(marker.icon_type) + '</span>' +
+        '</div>' +
+        '<div class="list-sub">' +
+          'Címke: ' + escapeHtml(marker.label || "-") + '<br>' +
+          'Jelölte: ' + escapeHtml(marker.author || "ismeretlen") + '<br>' +
+          'Megjegyzés: ' + escapeHtml(marker.note || "-") +
+        '</div>' +
+        '<div class="list-actions">' +
+          '<button data-action="focus-marker" data-id="' + marker.id + '">Megnyitás</button>' +
+          (editMode ? '<button data-action="delete-marker" data-id="' + marker.id + '">Törlés</button>' : "") +
+        '</div>';
+
+      return div;
+    }
+
+    function renderItemsList() {
+      itemsList.innerHTML = "";
+
+      const filteredZones = getFilteredZones();
+      const filteredMarkers = getFilteredMarkers();
+
+      const merged = [
+        ...filteredZones.map(z => ({ type: "zone", data: z })),
+        ...filteredMarkers.map(m => ({ type: "marker", data: m }))
+      ];
+
+      if (!merged.length) {
+        itemsList.innerHTML = '<div class="empty-note">Nincs a szűrőknek megfelelő jelölés.</div>';
+        return;
+      }
+
+      merged.forEach(item => {
+        const el = item.type === "zone"
+          ? buildListItemZone(item.data)
+          : buildListItemMarker(item.data);
+
+        itemsList.appendChild(el);
+      });
+    }
+
     function rerenderAll() {
       renderZones();
       renderMarkers();
+      renderItemsList();
     }
 
     async function loadAllData(showStatus = true) {
@@ -709,17 +835,8 @@
     }
 
     async function connectSupabase() {
-      const url = supabaseUrlEl.value.trim();
-      const key = supabaseKeyEl.value.trim();
-
-      if (!url || !key) {
-        setStatus("Hiányzik a Supabase URL vagy key.", true);
-        return false;
-      }
-
       try {
-        db = window.supabase.createClient(url, key);
-        saveLocalConfig();
+        db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const ok = await loadAllData(false);
         if (!ok) return false;
@@ -822,6 +939,25 @@
 
       await loadAllData(false);
       setStatus("Az ikon el lett mentve.");
+    }
+
+    function focusZoneById(id) {
+      const zone = zonesData.find(z => String(z.id) === String(id));
+      if (!zone || !map) return;
+
+      const bounds = [
+        [zone.y, zone.x],
+        [zone.y + zone.height, zone.x + zone.width]
+      ];
+
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+
+    function focusMarkerById(id) {
+      const marker = markersData.find(m => String(m.id) === String(id));
+      if (!marker || !map) return;
+
+      map.setView([marker.y, marker.x], Math.max(map.getZoom(), 0));
     }
 
     async function initMap() {
@@ -959,6 +1095,24 @@
       setStatus("Az ikon törölve lett.");
     };
 
+    itemsList.addEventListener("click", async function (e) {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+
+      if (action === "focus-zone") {
+        focusZoneById(id);
+      } else if (action === "focus-marker") {
+        focusMarkerById(id);
+      } else if (action === "delete-zone") {
+        await window.deleteZone(id);
+      } else if (action === "delete-marker") {
+        await window.deleteMarker(id);
+      }
+    });
+
     toolButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
         setMode(btn.dataset.mode);
@@ -990,10 +1144,6 @@
       rerenderAll();
     });
 
-    connectBtn.addEventListener("click", function () {
-      connectSupabase();
-    });
-
     toggleEditBtn.addEventListener("click", function () {
       editMode = !editMode;
       updateEditUi();
@@ -1001,19 +1151,11 @@
       setStatus(editMode ? "Szerkesztő mód bekapcsolva." : "Szerkesztő mód kikapcsolva.");
     });
 
-    toggleConfigBtn.addEventListener("click", function () {
-      showConfig = !showConfig;
-      updateConfigUi();
-    });
-
     authorInput.addEventListener("input", saveLocalConfig);
-    supabaseUrlEl.addEventListener("input", saveLocalConfig);
-    supabaseKeyEl.addEventListener("input", saveLocalConfig);
 
     async function bootstrap() {
       restoreLocalConfig();
       updateEditUi();
-      updateConfigUi();
       setMode("pan");
 
       try {
