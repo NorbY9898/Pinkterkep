@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GTA 5 Közös Felderítő Térkép</title>
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
     * { box-sizing: border-box; }
@@ -210,14 +207,6 @@
       margin-top: 10px;
     }
 
-    .good {
-      color: #8fe3a7;
-    }
-
-    .warn {
-      color: #ffd28a;
-    }
-
     @media (max-width: 940px) {
       .app {
         grid-template-columns: 1fr;
@@ -253,9 +242,7 @@
         <textarea id="supabaseKey"></textarea>
 
         <button id="connectBtn">Kapcsolódás</button>
-        <div class="hint">
-          A mezők már ki vannak töltve a projekted adataival.
-        </div>
+        <div class="hint">A mezők már ki vannak töltve a projekted adataival.</div>
       </div>
 
       <div class="panel">
@@ -309,7 +296,7 @@
 
         <div class="hint">
           Zóna mód: kattints és húzd az egeret.<br>
-          Ikon mód: kattints egy pontba.
+          Ikon mód: kattints egy pontra.
         </div>
       </div>
 
@@ -346,60 +333,45 @@
     const SUPABASE_URL_DEFAULT = "https://mypjldhrwovbuhwzmsw.supabase.co";
     const SUPABASE_KEY_DEFAULT = "sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ";
 
-    const MAP_IMAGE = 'gta-map.jpg';
-    const MAP_WIDTH = 4096;
-    const MAP_HEIGHT = 4096;
+    const MAP_IMAGE = "gta-map.jpg";
     const AUTO_REFRESH_MS = 15000;
     const DEFAULT_ZONE_MIN_SIZE = 15;
 
-    const bounds = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
-
     let supabase = null;
-    let currentMode = 'pan';
+    let currentMode = "pan";
     let zonesLayer = null;
     let markersLayer = null;
     let isDrawingZone = false;
     let drawStart = null;
     let previewRect = null;
     let refreshTimer = null;
+    let map = null;
+    let mapBounds = null;
+    let mapReady = false;
 
-    const map = L.map('map', {
-      crs: L.CRS.Simple,
-      minZoom: -2,
-      maxZoom: 2,
-      zoomSnap: 0.25,
-      attributionControl: false
-    });
-
-    L.imageOverlay(MAP_IMAGE, bounds).addTo(map);
-    map.fitBounds(bounds);
-
-    zonesLayer = L.layerGroup().addTo(map);
-    markersLayer = L.layerGroup().addTo(map);
-
-    const supabaseUrlEl = document.getElementById('supabaseUrl');
-    const supabaseKeyEl = document.getElementById('supabaseKey');
-    const authorInput = document.getElementById('authorInput');
-    const labelInput = document.getElementById('labelInput');
-    const noteInput = document.getElementById('noteInput');
-    const zoneColorEl = document.getElementById('zoneColor');
-    const markerTypeEl = document.getElementById('markerType');
-    const connectBtn = document.getElementById('connectBtn');
-    const reloadBtn = document.getElementById('reloadBtn');
-    const resetFormBtn = document.getElementById('resetFormBtn');
-    const statusBox = document.getElementById('statusBox');
-    const toolButtons = document.querySelectorAll('.tool-button');
+    const supabaseUrlEl = document.getElementById("supabaseUrl");
+    const supabaseKeyEl = document.getElementById("supabaseKey");
+    const authorInput = document.getElementById("authorInput");
+    const labelInput = document.getElementById("labelInput");
+    const noteInput = document.getElementById("noteInput");
+    const zoneColorEl = document.getElementById("zoneColor");
+    const markerTypeEl = document.getElementById("markerType");
+    const connectBtn = document.getElementById("connectBtn");
+    const reloadBtn = document.getElementById("reloadBtn");
+    const resetFormBtn = document.getElementById("resetFormBtn");
+    const statusBox = document.getElementById("statusBox");
+    const toolButtons = document.querySelectorAll(".tool-button");
 
     const STORAGE_KEYS = {
-      url: 'gta_map_supabase_url',
-      key: 'gta_map_supabase_key',
-      author: 'gta_map_author'
+      url: "gta_map_supabase_url",
+      key: "gta_map_supabase_key",
+      author: "gta_map_author"
     };
 
     function setStatus(message, isError = false) {
       statusBox.textContent = message;
-      statusBox.style.borderColor = isError ? 'rgba(231,76,60,0.45)' : 'rgba(255,255,255,0.08)';
-      statusBox.style.color = isError ? '#ffd0d0' : '#c8d2dc';
+      statusBox.style.borderColor = isError ? "rgba(231,76,60,0.45)" : "rgba(255,255,255,0.08)";
+      statusBox.style.color = isError ? "#ffd0d0" : "#c8d2dc";
     }
 
     function saveLocalConfig() {
@@ -411,34 +383,69 @@
     function restoreLocalConfig() {
       supabaseUrlEl.value = localStorage.getItem(STORAGE_KEYS.url) || SUPABASE_URL_DEFAULT;
       supabaseKeyEl.value = localStorage.getItem(STORAGE_KEYS.key) || SUPABASE_KEY_DEFAULT;
-      authorInput.value = localStorage.getItem(STORAGE_KEYS.author) || '';
+      authorInput.value = localStorage.getItem(STORAGE_KEYS.author) || "";
     }
 
     function escapeHtml(text) {
-      if (!text) return '';
+      if (!text) return "";
       return text
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     function getCurrentPayloadMeta() {
       return {
         label: labelInput.value.trim(),
         note: noteInput.value.trim(),
-        author: authorInput.value.trim() || 'ismeretlen'
+        author: authorInput.value.trim() || "ismeretlen"
       };
+    }
+
+    function getZoneStyle(color) {
+      if (color === "green") {
+        return { color: "#1f8f45", fillColor: "#2ecc71", fillOpacity: 0.28, weight: 2 };
+      }
+      if (color === "yellow") {
+        return { color: "#b58b00", fillColor: "#f1c40f", fillOpacity: 0.30, weight: 2 };
+      }
+      return { color: "#b93232", fillColor: "#e74c3c", fillOpacity: 0.28, weight: 2 };
+    }
+
+    function getMarkerEmoji(type) {
+      const icons = {
+        loot: "📦",
+        weapon: "🔫",
+        car: "🚗",
+        danger: "⚠️",
+        house: "🏠",
+        money: "💰"
+      };
+      return icons[type] || "📍";
+    }
+
+    function createEmojiIcon(type) {
+      return L.divIcon({
+        className: "",
+        html: `<div class="custom-emoji-icon">${getMarkerEmoji(type)}</div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        popupAnchor: [0, -16]
+      });
     }
 
     function setMode(mode) {
       currentMode = mode;
+
       toolButtons.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === mode);
+        btn.classList.toggle("active", btn.dataset.mode === mode);
       });
 
-      if (mode === 'pan' || mode === 'inspect') {
+      if (!mapReady) return;
+
+      if (mode === "pan" || mode === "inspect") {
         map.dragging.enable();
       } else {
         map.dragging.disable();
@@ -453,50 +460,14 @@
       drawStart = null;
     }
 
-    toolButtons.forEach(btn => {
-      btn.addEventListener('click', () => setMode(btn.dataset.mode));
-    });
-
-    function getZoneStyle(color) {
-      if (color === 'green') {
-        return { color: '#1f8f45', fillColor: '#2ecc71', fillOpacity: 0.28, weight: 2 };
-      }
-      if (color === 'yellow') {
-        return { color: '#b58b00', fillColor: '#f1c40f', fillOpacity: 0.30, weight: 2 };
-      }
-      return { color: '#b93232', fillColor: '#e74c3c', fillOpacity: 0.28, weight: 2 };
-    }
-
-    function getMarkerEmoji(type) {
-      const icons = {
-        loot: '📦',
-        weapon: '🔫',
-        car: '🚗',
-        danger: '⚠️',
-        house: '🏠',
-        money: '💰'
-      };
-      return icons[type] || '📍';
-    }
-
-    function createEmojiIcon(type) {
-      return L.divIcon({
-        className: '',
-        html: `<div class="custom-emoji-icon">${getMarkerEmoji(type)}</div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-        popupAnchor: [0, -16]
-      });
-    }
-
     function zonePopupHtml(zone) {
       return `
         <div class="popup-meta">
           <strong>Zóna</strong><br>
           Szín: ${escapeHtml(zone.color)}<br>
-          Címke: ${escapeHtml(zone.label || '-')}<br>
-          Megjegyzés: ${escapeHtml(zone.note || '-')}<br>
-          Jelölte: ${escapeHtml(zone.author || 'ismeretlen')}<br>
+          Címke: ${escapeHtml(zone.label || "-")}<br>
+          Megjegyzés: ${escapeHtml(zone.note || "-")}<br>
+          Jelölte: ${escapeHtml(zone.author || "ismeretlen")}<br>
           <div class="popup-actions">
             <button onclick="deleteZone(${zone.id})">Zóna törlése</button>
           </div>
@@ -509,9 +480,9 @@
         <div class="popup-meta">
           <strong>${escapeHtml(getMarkerEmoji(marker.icon_type))} Ikonpont</strong><br>
           Típus: ${escapeHtml(marker.icon_type)}<br>
-          Címke: ${escapeHtml(marker.label || '-')}<br>
-          Megjegyzés: ${escapeHtml(marker.note || '-')}<br>
-          Jelölte: ${escapeHtml(marker.author || 'ismeretlen')}<br>
+          Címke: ${escapeHtml(marker.label || "-")}<br>
+          Megjegyzés: ${escapeHtml(marker.note || "-")}<br>
+          Jelölte: ${escapeHtml(marker.author || "ismeretlen")}<br>
           <div class="popup-actions">
             <button onclick="deleteMarker(${marker.id})">Ikon törlése</button>
           </div>
@@ -520,7 +491,9 @@
     }
 
     function renderZones(zones) {
+      if (!mapReady) return;
       zonesLayer.clearLayers();
+
       zones.forEach(zone => {
         const rect = L.rectangle([
           [zone.y, zone.x],
@@ -532,7 +505,9 @@
     }
 
     function renderMarkers(markers) {
+      if (!mapReady) return;
       markersLayer.clearLayers();
+
       markers.forEach(marker => {
         const m = L.marker([marker.y, marker.x], {
           icon: createEmojiIcon(marker.icon_type)
@@ -544,26 +519,26 @@
 
     async function loadAllData() {
       if (!supabase) {
-        setStatus('Nincs aktív adatbázis kapcsolat.', true);
+        setStatus("Nincs aktív adatbázis kapcsolat.", true);
         return;
       }
 
-      setStatus('Adatok betöltése...');
+      setStatus("Adatok betöltése...");
 
       const [zonesRes, markersRes] = await Promise.all([
-        supabase.from('zones').select('*').order('id', { ascending: true }),
-        supabase.from('markers').select('*').order('id', { ascending: true })
+        supabase.from("zones").select("*").order("id", { ascending: true }),
+        supabase.from("markers").select("*").order("id", { ascending: true })
       ]);
 
       if (zonesRes.error) {
         console.error(zonesRes.error);
-        setStatus('Hiba a zónák betöltésekor. Ellenőrizd, hogy létrehoztad-e a zones táblát és ki van-e kapcsolva az RLS.', true);
+        setStatus("Hiba a zónák betöltésekor. Ellenőrizd a zones táblát és az RLS-t.", true);
         return;
       }
 
       if (markersRes.error) {
         console.error(markersRes.error);
-        setStatus('Hiba az ikonok betöltésekor. Ellenőrizd, hogy létrehoztad-e a markers táblát és ki van-e kapcsolva az RLS.', true);
+        setStatus("Hiba az ikonok betöltésekor. Ellenőrizd a markers táblát és az RLS-t.", true);
         return;
       }
 
@@ -577,28 +552,27 @@
       const key = supabaseKeyEl.value.trim();
 
       if (!url || !key) {
-        setStatus('Hiányzik a Supabase URL vagy a publishable key.', true);
+        setStatus("Hiányzik a Supabase URL vagy a publishable key.", true);
         return;
       }
 
       try {
         supabase = window.supabase.createClient(url, key);
         saveLocalConfig();
+
         await loadAllData();
 
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(loadAllData, AUTO_REFRESH_MS);
-
-        setStatus('Sikeres csatlakozás. Az automatikus frissítés aktív.');
       } catch (error) {
         console.error(error);
-        setStatus('Nem sikerült csatlakozni a Supabase-hez.', true);
+        setStatus("Nem sikerült csatlakozni a Supabase-hez.", true);
       }
     }
 
     async function createZoneFromBounds(latlngA, latlngB) {
       if (!supabase) {
-        setStatus('Előbb csatlakozz a Supabase-hez.', true);
+        setStatus("Előbb csatlakozz a Supabase-hez.", true);
         return;
       }
 
@@ -611,13 +585,13 @@
       const height = Math.abs(latlngA.lat - latlngB.lat);
 
       if (width < DEFAULT_ZONE_MIN_SIZE || height < DEFAULT_ZONE_MIN_SIZE) {
-        setStatus('A zóna túl kicsi lett. Húzz nagyobb területet.', true);
+        setStatus("A zóna túl kicsi lett. Húzz nagyobb területet.", true);
         return;
       }
 
-      setStatus('Zóna mentése...');
+      setStatus("Zóna mentése...");
 
-      const payload = {
+      const { error } = await supabase.from("zones").insert({
         x,
         y,
         width,
@@ -626,31 +600,30 @@
         label: meta.label,
         note: meta.note,
         author: meta.author
-      };
+      });
 
-      const { error } = await supabase.from('zones').insert(payload);
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült elmenteni a zónát. Ellenőrizd az RLS-t és a zones tábla szerkezetét.', true);
+        setStatus("Nem sikerült elmenteni a zónát. Ellenőrizd az RLS-t és a zones tábla szerkezetét.", true);
         return;
       }
 
       await loadAllData();
-      setStatus('A zóna el lett mentve.');
+      setStatus("A zóna el lett mentve.");
     }
 
     async function createMarker(latlng) {
       if (!supabase) {
-        setStatus('Előbb csatlakozz a Supabase-hez.', true);
+        setStatus("Előbb csatlakozz a Supabase-hez.", true);
         return;
       }
 
       const meta = getCurrentPayloadMeta();
       const iconType = markerTypeEl.value;
 
-      setStatus('Ikon mentése...');
+      setStatus("Ikon mentése...");
 
-      const { error } = await supabase.from('markers').insert({
+      const { error } = await supabase.from("markers").insert({
         x: latlng.lng,
         y: latlng.lat,
         icon_type: iconType,
@@ -661,102 +634,171 @@
 
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült elmenteni az ikont. Ellenőrizd az RLS-t és a markers tábla szerkezetét.', true);
+        setStatus("Nem sikerült elmenteni az ikont. Ellenőrizd az RLS-t és a markers tábla szerkezetét.", true);
         return;
       }
 
       await loadAllData();
-      setStatus('Az ikon el lett mentve.');
+      setStatus("Az ikon el lett mentve.");
     }
 
-    map.on('mousedown', (e) => {
-      if (currentMode !== 'zone') return;
-      isDrawingZone = true;
-      drawStart = e.latlng;
+    async function initMap() {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
 
-      if (previewRect) {
-        map.removeLayer(previewRect);
-        previewRect = null;
-      }
+        img.onload = () => {
+          const width = img.naturalWidth;
+          const height = img.naturalHeight;
 
-      previewRect = L.rectangle([drawStart, drawStart], getZoneStyle(zoneColorEl.value)).addTo(map);
+          mapBounds = [[0, 0], [height, width]];
+
+          map = L.map("map", {
+            crs: L.CRS.Simple,
+            minZoom: -2,
+            maxZoom: 2,
+            zoomSnap: 0.25,
+            attributionControl: false
+          });
+
+          L.imageOverlay(MAP_IMAGE, mapBounds).addTo(map);
+          map.fitBounds(mapBounds);
+
+          zonesLayer = L.layerGroup().addTo(map);
+          markersLayer = L.layerGroup().addTo(map);
+
+          map.on("mousedown", (e) => {
+            if (currentMode !== "zone") return;
+            isDrawingZone = true;
+            drawStart = e.latlng;
+
+            if (previewRect) {
+              map.removeLayer(previewRect);
+              previewRect = null;
+            }
+
+            previewRect = L.rectangle([drawStart, drawStart], getZoneStyle(zoneColorEl.value)).addTo(map);
+          });
+
+          map.on("mousemove", (e) => {
+            if (currentMode !== "zone" || !isDrawingZone || !drawStart || !previewRect) return;
+            previewRect.setBounds(L.latLngBounds(drawStart, e.latlng));
+          });
+
+          map.on("mouseup", async (e) => {
+            if (currentMode !== "zone" || !isDrawingZone || !drawStart) return;
+            isDrawingZone = false;
+
+            if (previewRect) {
+              map.removeLayer(previewRect);
+              previewRect = null;
+            }
+
+            await createZoneFromBounds(drawStart, e.latlng);
+            drawStart = null;
+          });
+
+          map.on("click", async (e) => {
+            if (currentMode === "marker") {
+              await createMarker(e.latlng);
+            }
+          });
+
+          window.addEventListener("resize", () => {
+            if (map) {
+              setTimeout(() => map.invalidateSize(), 100);
+            }
+          });
+
+          setTimeout(() => map.invalidateSize(), 150);
+
+          mapReady = true;
+          setMode(currentMode);
+          resolve();
+        };
+
+        img.onerror = () => {
+          reject(new Error("A gta-map.jpg nem tölthető be."));
+        };
+
+        img.src = MAP_IMAGE;
+      });
+    }
+
+    toolButtons.forEach(btn => {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode));
     });
 
-    map.on('mousemove', (e) => {
-      if (currentMode !== 'zone' || !isDrawingZone || !drawStart || !previewRect) return;
-      previewRect.setBounds(L.latLngBounds(drawStart, e.latlng));
+    reloadBtn.addEventListener("click", loadAllData);
+
+    resetFormBtn.addEventListener("click", () => {
+      labelInput.value = "";
+      noteInput.value = "";
+      setStatus("Az űrlap mezők törölve.");
     });
 
-    map.on('mouseup', async (e) => {
-      if (currentMode !== 'zone' || !isDrawingZone || !drawStart) return;
-      isDrawingZone = false;
+    connectBtn.addEventListener("click", connectSupabase);
 
-      if (previewRect) {
-        map.removeLayer(previewRect);
-        previewRect = null;
-      }
-
-      await createZoneFromBounds(drawStart, e.latlng);
-      drawStart = null;
-    });
-
-    map.on('click', async (e) => {
-      if (currentMode === 'marker') {
-        await createMarker(e.latlng);
-      }
-    });
-
-    reloadBtn.addEventListener('click', loadAllData);
-    connectBtn.addEventListener('click', connectSupabase);
-
-    resetFormBtn.addEventListener('click', () => {
-      labelInput.value = '';
-      noteInput.value = '';
-      setStatus('Az űrlap mezők törölve.');
-    });
-
-    authorInput.addEventListener('input', saveLocalConfig);
-    supabaseUrlEl.addEventListener('input', saveLocalConfig);
-    supabaseKeyEl.addEventListener('input', saveLocalConfig);
+    authorInput.addEventListener("input", saveLocalConfig);
+    supabaseUrlEl.addEventListener("input", saveLocalConfig);
+    supabaseKeyEl.addEventListener("input", saveLocalConfig);
 
     window.deleteZone = async function(id) {
       if (!supabase) return;
-      const ok = confirm('Biztos törlöd ezt a zónát?');
+      const ok = confirm("Biztos törlöd ezt a zónát?");
       if (!ok) return;
 
-      setStatus('Zóna törlése...');
-      const { error } = await supabase.from('zones').delete().eq('id', id);
+      setStatus("Zóna törlése...");
+      const { error } = await supabase.from("zones").delete().eq("id", id);
+
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült törölni a zónát.', true);
+        setStatus("Nem sikerült törölni a zónát.", true);
         return;
       }
+
       await loadAllData();
-      setStatus('A zóna törölve lett.');
+      setStatus("A zóna törölve lett.");
     };
 
     window.deleteMarker = async function(id) {
       if (!supabase) return;
-      const ok = confirm('Biztos törlöd ezt az ikont?');
+      const ok = confirm("Biztos törlöd ezt az ikont?");
       if (!ok) return;
 
-      setStatus('Ikon törlése...');
-      const { error } = await supabase.from('markers').delete().eq('id', id);
+      setStatus("Ikon törlése...");
+      const { error } = await supabase.from("markers").delete().eq("id", id);
+
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült törölni az ikont.', true);
+        setStatus("Nem sikerült törölni az ikont.", true);
         return;
       }
+
       await loadAllData();
-      setStatus('Az ikon törölve lett.');
+      setStatus("Az ikon törölve lett.");
     };
 
-    restoreLocalConfig();
-    setMode('pan');
+    async function bootstrap() {
+      restoreLocalConfig();
+      setMode("pan");
 
-    if (supabaseUrlEl.value && supabaseKeyEl.value) {
-      setStatus('A Supabase adatok be vannak állítva. Nyomj a Kapcsolódás gombra, majd ha kell, hozd létre az SQL táblákat.');
+      try {
+        setStatus("Térkép betöltése...");
+        await initMap();
+
+        if (supabaseUrlEl.value && supabaseKeyEl.value) {
+          setStatus("Térkép kész. Csatlakozás az adatbázishoz...");
+          await connectSupabase();
+        } else {
+          setStatus("A térkép betöltve. Add meg a Supabase adatokat, majd nyomj Kapcsolódás.");
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus("Hiba a térkép betöltésekor. Ellenőrizd, hogy a gta-map.jpg ugyanabban a mappában van.", true);
+      }
     }
+
+    bootstrap();
   </script>
 </body>
 </html>
