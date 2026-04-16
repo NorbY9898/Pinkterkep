@@ -1,4 +1,4 @@
- {
+* {
   box-sizing: border-box;
 }
 
@@ -26,14 +26,16 @@ body {
 
 .sidebar {
   background: #171d22;
-  border-right: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 18px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar h1 {
   margin: 0 0 4px;
   font-size: 24px;
+  line-height: 1.2;
 }
 
 .muted {
@@ -43,14 +45,14 @@ body {
 
 .panel {
   background: #1d252c;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 14px;
   margin-bottom: 14px;
 }
 
 .panel h2 {
-  margin-top: 0;
+  margin: 0 0 10px;
   font-size: 16px;
 }
 
@@ -62,14 +64,20 @@ label {
 
 input,
 select,
+textarea,
 button {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: #11171c;
   color: #fff;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+textarea {
+  min-height: 72px;
+  resize: vertical;
 }
 
 button {
@@ -79,7 +87,7 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  border-color: rgba(255,255,255,0.22);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .button-grid {
@@ -90,17 +98,21 @@ button:hover {
 
 .tool-button.active {
   outline: 2px solid #36c26b;
+  background: #13251b;
 }
 
 .hint {
   font-size: 12px;
   color: #b8c0c7;
   margin-top: 10px;
+  line-height: 1.5;
 }
 
 .map-wrap {
   width: 100%;
   height: 100vh;
+  min-width: 0;
+  position: relative;
 }
 
 #map {
@@ -111,24 +123,40 @@ button:hover {
 
 .zone-label-popup {
   font-size: 12px;
+  line-height: 1.5;
 }
 
 .custom-marker-icon {
   width: 28px;
   height: 28px;
   object-fit: contain;
+  display: block;
+}
+
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+.leaflet-popup-content {
+  min-width: 180px;
 }
 
 @media (max-width: 900px) {
+  body {
+    overflow: auto;
+  }
+
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+    height: 100vh;
   }
 
   .sidebar {
     max-height: 42vh;
     border-right: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .map-wrap {
