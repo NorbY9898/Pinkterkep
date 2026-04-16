@@ -25,7 +25,7 @@
 
     .app {
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 360px 1fr 360px;
       width: 100%;
       height: 100vh;
     }
@@ -34,11 +34,18 @@
       background:
         linear-gradient(180deg, rgba(255,255,255,0.03), transparent 20%),
         linear-gradient(180deg, #151b23 0%, #10161d 100%);
-      border-right: 1px solid rgba(255,255,255,0.08);
       padding: 16px;
       overflow-y: auto;
       overflow-x: hidden;
       box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
+    }
+
+    .sidebar.left {
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .sidebar.right {
+      border-left: 1px solid rgba(255,255,255,0.08);
     }
 
     .brand {
@@ -249,10 +256,14 @@
       background: rgba(57,217,138,0.12);
     }
 
+    .search-box {
+      margin-bottom: 10px;
+    }
+
     .list-wrap {
       display: grid;
       gap: 8px;
-      max-height: 320px;
+      max-height: 470px;
       overflow-y: auto;
       padding-right: 4px;
     }
@@ -264,6 +275,14 @@
       padding: 10px;
       display: grid;
       gap: 8px;
+      transition: 0.15s ease;
+    }
+
+    .list-item:hover,
+    .list-item.active {
+      border-color: rgba(57,217,138,0.35);
+      box-shadow: 0 0 0 2px rgba(57,217,138,0.08);
+      transform: translateY(-1px);
     }
 
     .list-top {
@@ -326,20 +345,54 @@
       padding: 10px 0;
     }
 
-    @media (max-width: 1050px) {
+    .pulse-rect {
+      animation: dangerPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes dangerPulse {
+      0%   { filter: drop-shadow(0 0 0 rgba(255,80,80,0.00)); }
+      50%  { filter: drop-shadow(0 0 10px rgba(255,80,80,0.45)); }
+      100% { filter: drop-shadow(0 0 0 rgba(255,80,80,0.00)); }
+    }
+
+    .map-flash {
+      animation: highlightPulse 1.2s ease-in-out 2;
+    }
+
+    @keyframes highlightPulse {
+      0%   { opacity: 0.45; }
+      50%  { opacity: 1; }
+      100% { opacity: 0.45; }
+    }
+
+    @media (max-width: 1280px) {
+      .app {
+        grid-template-columns: 320px 1fr 320px;
+      }
+    }
+
+    @media (max-width: 1080px) {
       .app {
         grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
+        grid-template-rows: auto auto 1fr;
       }
 
-      .sidebar {
-        max-height: 48vh;
+      .sidebar.left {
         border-right: 0;
         border-bottom: 1px solid rgba(255,255,255,0.08);
       }
 
+      .sidebar.right {
+        border-left: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+
+      .sidebar {
+        max-height: 38vh;
+      }
+
       .map-wrap {
-        height: 52vh;
+        height: 56vh;
       }
     }
 
@@ -354,7 +407,7 @@
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar left">
       <div class="brand">
         <h1>GTA 5 közös térkép</h1>
         <p>Felderített zónák, találatok, veszélyes pontok</p>
@@ -433,7 +486,21 @@
       </div>
 
       <div class="panel">
+        <h2>Állapot</h2>
+        <div id="statusBox" class="status">Indításra kész.</div>
+      </div>
+    </aside>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+    </main>
+
+    <aside class="sidebar right">
+      <div class="panel">
         <h2>Szűrés</h2>
+
+        <label>Keresés</label>
+        <input id="searchInput" class="search-box" type="text" placeholder="pl. lőszer, Norby, veszély..." />
 
         <label>Zónák szűrése</label>
         <select id="zoneFilter">
@@ -474,16 +541,7 @@
           <div class="legend-item">💰 Pénz</div>
         </div>
       </div>
-
-      <div class="panel">
-        <h2>Állapot</h2>
-        <div id="statusBox" class="status">Indításra kész.</div>
-      </div>
     </aside>
-
-    <main class="map-wrap">
-      <div id="map"></div>
-    </main>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -512,6 +570,8 @@
 
     let zonesData = [];
     let markersData = [];
+    const zoneRefs = new Map();
+    const markerRefs = new Map();
 
     const authorInput = document.getElementById("authorInput");
     const labelInput = document.getElementById("labelInput");
@@ -528,6 +588,7 @@
     const zoneFilterEl = document.getElementById("zoneFilter");
     const markerFilterEl = document.getElementById("markerFilter");
     const itemsList = document.getElementById("itemsList");
+    const searchInput = document.getElementById("searchInput");
 
     const STORAGE_KEYS = {
       author: "gta_map_author"
@@ -565,6 +626,13 @@
         .replaceAll("'", "&#039;");
     }
 
+    function normalizeText(value) {
+      return String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
     function getCurrentPayloadMeta() {
       return {
         label: labelInput.value.trim(),
@@ -580,7 +648,7 @@
       if (color === "yellow") {
         return { color: "#d4a017", fillColor: "#ffd166", fillOpacity: 0.24, weight: 2 };
       }
-      return { color: "#e05252", fillColor: "#ff6b6b", fillOpacity: 0.22, weight: 2 };
+      return { color: "#e05252", fillColor: "#ff6b6b", fillOpacity: 0.20, weight: 2 };
     }
 
     function getMarkerEmoji(type) {
@@ -679,18 +747,86 @@
 
     function getFilteredZones() {
       const zoneFilter = zoneFilterEl.value;
-      if (zoneFilter === "all") return zonesData;
-      return zonesData.filter(z => z.color === zoneFilter);
+      const q = normalizeText(searchInput.value);
+
+      return zonesData.filter(function (z) {
+        const matchesColor = zoneFilter === "all" || z.color === zoneFilter;
+        const haystack = normalizeText(
+          [z.label, z.note, z.author, z.color, "zona"].join(" ")
+        );
+        const matchesSearch = !q || haystack.includes(q);
+        return matchesColor && matchesSearch;
+      });
     }
 
     function getFilteredMarkers() {
       const markerFilter = markerFilterEl.value;
-      if (markerFilter === "all") return markersData;
-      return markersData.filter(m => m.icon_type === markerFilter);
+      const q = normalizeText(searchInput.value);
+
+      return markersData.filter(function (m) {
+        const matchesType = markerFilter === "all" || m.icon_type === markerFilter;
+        const haystack = normalizeText(
+          [m.label, m.note, m.author, m.icon_type].join(" ")
+        );
+        const matchesSearch = !q || haystack.includes(q);
+        return matchesType && matchesSearch;
+      });
+    }
+
+    function clearHighlights() {
+      zoneRefs.forEach(function (layer) {
+        if (!layer) return;
+        layer.setStyle(getZoneStyle(layer.__zoneColor || "red"));
+        const el = layer.getElement && layer.getElement();
+        if (el) el.classList.remove("map-flash", "pulse-rect");
+        if (layer.__zoneColor === "red" && el) {
+          el.classList.add("pulse-rect");
+        }
+      });
+
+      markerRefs.forEach(function (marker) {
+        const el = marker.getElement && marker.getElement();
+        if (el) el.classList.remove("map-flash");
+      });
+
+      document.querySelectorAll(".list-item.active").forEach(function (el) {
+        el.classList.remove("active");
+      });
+    }
+
+    function highlightZone(id) {
+      clearHighlights();
+      const layer = zoneRefs.get(String(id));
+      if (!layer) return;
+
+      layer.setStyle({
+        color: "#ffffff",
+        fillOpacity: 0.32,
+        weight: 3
+      });
+
+      const el = layer.getElement && layer.getElement();
+      if (el) el.classList.add("map-flash");
+
+      const listItem = document.querySelector('.list-item[data-kind="zone"][data-id="' + id + '"]');
+      if (listItem) listItem.classList.add("active");
+    }
+
+    function highlightMarker(id) {
+      clearHighlights();
+      const marker = markerRefs.get(String(id));
+      if (!marker) return;
+
+      const el = marker.getElement && marker.getElement();
+      if (el) el.classList.add("map-flash");
+
+      const listItem = document.querySelector('.list-item[data-kind="marker"][data-id="' + id + '"]');
+      if (listItem) listItem.classList.add("active");
     }
 
     function renderZones() {
       zonesLayer.clearLayers();
+      zoneRefs.clear();
 
       getFilteredZones().forEach(function (zone) {
         const rect = L.rectangle(
@@ -701,13 +837,31 @@
           getZoneStyle(zone.color)
         );
 
+        rect.__zoneColor = zone.color;
         rect.bindPopup(zonePopupHtml(zone));
         rect.addTo(zonesLayer);
+        zoneRefs.set(String(zone.id), rect);
+
+        rect.on("mouseover", function () {
+          highlightZone(zone.id);
+        });
+
+        rect.on("mouseout", function () {
+          clearHighlights();
+        });
+
+        rect.on("add", function () {
+          const el = rect.getElement && rect.getElement();
+          if (el && zone.color === "red") {
+            el.classList.add("pulse-rect");
+          }
+        });
       });
     }
 
     function renderMarkers() {
       markersLayer.clearLayers();
+      markerRefs.clear();
 
       getFilteredMarkers().forEach(function (marker) {
         const m = L.marker([marker.y, marker.x], {
@@ -716,6 +870,15 @@
 
         m.bindPopup(markerPopupHtml(marker));
         m.addTo(markersLayer);
+        markerRefs.set(String(marker.id), m);
+
+        m.on("mouseover", function () {
+          highlightMarker(marker.id);
+        });
+
+        m.on("mouseout", function () {
+          clearHighlights();
+        });
       });
     }
 
@@ -723,6 +886,8 @@
       const colorClass = zone.color === "green" ? "green" : zone.color === "yellow" ? "yellow" : "red";
       const div = document.createElement("div");
       div.className = "list-item";
+      div.dataset.kind = "zone";
+      div.dataset.id = zone.id;
 
       div.innerHTML =
         '<div class="list-top">' +
@@ -730,7 +895,7 @@
           '<span class="tag ' + colorClass + '">' + escapeHtml(zone.color) + '</span>' +
         '</div>' +
         '<div class="list-sub">' +
-          'Címke: ' + escapeHtml(zone.label || "-") + '<br>' +
+          'Címke: ' + escapeHtml(zone.label || "üres") + '<br>' +
           'Jelölte: ' + escapeHtml(zone.author || "ismeretlen") + '<br>' +
           'Megjegyzés: ' + escapeHtml(zone.note || "-") +
         '</div>' +
@@ -739,12 +904,22 @@
           (editMode ? '<button data-action="delete-zone" data-id="' + zone.id + '">Törlés</button>' : "") +
         '</div>';
 
+      div.addEventListener("mouseenter", function () {
+        highlightZone(zone.id);
+      });
+
+      div.addEventListener("mouseleave", function () {
+        clearHighlights();
+      });
+
       return div;
     }
 
     function buildListItemMarker(marker) {
       const div = document.createElement("div");
       div.className = "list-item";
+      div.dataset.kind = "marker";
+      div.dataset.id = marker.id;
 
       div.innerHTML =
         '<div class="list-top">' +
@@ -752,7 +927,7 @@
           '<span class="tag">' + escapeHtml(marker.icon_type) + '</span>' +
         '</div>' +
         '<div class="list-sub">' +
-          'Címke: ' + escapeHtml(marker.label || "-") + '<br>' +
+          'Címke: ' + escapeHtml(marker.label || "üres") + '<br>' +
           'Jelölte: ' + escapeHtml(marker.author || "ismeretlen") + '<br>' +
           'Megjegyzés: ' + escapeHtml(marker.note || "-") +
         '</div>' +
@@ -760,6 +935,14 @@
           '<button data-action="focus-marker" data-id="' + marker.id + '">Megnyitás</button>' +
           (editMode ? '<button data-action="delete-marker" data-id="' + marker.id + '">Törlés</button>' : "") +
         '</div>';
+
+      div.addEventListener("mouseenter", function () {
+        highlightMarker(marker.id);
+      });
+
+      div.addEventListener("mouseleave", function () {
+        clearHighlights();
+      });
 
       return div;
     }
@@ -780,7 +963,7 @@
         return;
       }
 
-      merged.forEach(item => {
+      merged.forEach(function (item) {
         const el = item.type === "zone"
           ? buildListItemZone(item.data)
           : buildListItemMarker(item.data);
@@ -950,6 +1133,7 @@
         [zone.y + zone.height, zone.x + zone.width]
       ];
 
+      highlightZone(id);
       map.fitBounds(bounds, { padding: [30, 30] });
     }
 
@@ -957,6 +1141,7 @@
       const marker = markersData.find(m => String(m.id) === String(id));
       if (!marker || !map) return;
 
+      highlightMarker(id);
       map.setView([marker.y, marker.x], Math.max(map.getZoom(), 0));
     }
 
@@ -1132,6 +1317,7 @@
     clearFiltersBtn.addEventListener("click", function () {
       zoneFilterEl.value = "all";
       markerFilterEl.value = "all";
+      searchInput.value = "";
       rerenderAll();
       setStatus("A szűrők törölve.");
     });
@@ -1141,6 +1327,10 @@
     });
 
     markerFilterEl.addEventListener("change", function () {
+      rerenderAll();
+    });
+
+    searchInput.addEventListener("input", function () {
       rerenderAll();
     });
 
