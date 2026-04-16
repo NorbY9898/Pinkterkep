@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GTA 5 közös térkép</title>
-
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
   <style>
@@ -24,7 +23,7 @@
 
     .app {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: 350px 1fr;
       width: 100%;
       height: 100vh;
     }
@@ -71,6 +70,12 @@
       gap: 10px;
     }
 
+    .row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
     label {
       display: block;
       margin: 10px 0 6px;
@@ -109,7 +114,8 @@
       gap: 8px;
     }
 
-    .tool-button.active {
+    .tool-button.active,
+    .toggle-button.active {
       outline: 2px solid #2ecc71;
       background: #13251b;
     }
@@ -140,9 +146,9 @@
       display: inline-block;
     }
 
-    .dot.green { background: #2ecc71; }
-    .dot.yellow { background: #f1c40f; }
-    .dot.red { background: #e74c3c; }
+    .dot.green { background: #39d98a; }
+    .dot.yellow { background: #ffd166; }
+    .dot.red { background: #ff6b6b; }
 
     .status {
       margin-top: 10px;
@@ -205,6 +211,31 @@
       margin-top: 10px;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
+    .readonly-field {
+      opacity: 0.8;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0f141b;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .pill.on {
+      color: #9af0bf;
+      border-color: rgba(57,217,138,0.35);
+      background: rgba(57,217,138,0.12);
+    }
+
     @media (max-width: 940px) {
       body { overflow: auto; }
 
@@ -214,13 +245,17 @@
       }
 
       .sidebar {
-        max-height: 44vh;
+        max-height: 46vh;
         border-right: 0;
         border-bottom: 1px solid rgba(255,255,255,0.08);
       }
 
       .map-wrap {
-        height: 56vh;
+        height: 54vh;
+      }
+
+      .row, .row-3 {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -234,16 +269,42 @@
       </div>
 
       <div class="panel">
-        <h2>Kapcsolat / adatbázis</h2>
+        <h2>
+          Kapcsolat / adatbázis
+          <span id="configModePill" class="pill">rejtett</span>
+        </h2>
 
-        <label>Supabase URL</label>
-        <input id="supabaseUrl" type="text" value="https://mypljdhrwvobhuwhzmsw.supabase.co" />
+        <div class="small-buttons" style="margin-top:0;margin-bottom:10px;">
+          <button id="toggleConfigBtn" class="toggle-button">Supabase mezők mutatása</button>
+          <button id="connectBtn">Kapcsolódás</button>
+        </div>
 
-        <label>Supabase publishable key</label>
-        <textarea id="supabaseKey">sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ</textarea>
+        <div id="configFields" class="hidden">
+          <label>Supabase URL</label>
+          <input id="supabaseUrl" type="text" value="https://mypjldhrwovbuhwzmsw.supabase.co" class="readonly-field" />
 
-        <button id="connectBtn">Kapcsolódás</button>
-        <div class="hint">A mezők előre ki vannak töltve.</div>
+          <label>Supabase publishable key</label>
+          <textarea id="supabaseKey" class="readonly-field">sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ</textarea>
+        </div>
+
+        <div class="hint">A mezők alapból rejtve vannak, de ugyanúgy működik a kapcsolat.</div>
+      </div>
+
+      <div class="panel">
+        <h2>
+          Szerkesztés
+          <span id="editModePill" class="pill">kikapcsolva</span>
+        </h2>
+
+        <div class="small-buttons" style="margin-top:0;">
+          <button id="toggleEditBtn" class="toggle-button">Szerkesztő mód</button>
+          <button id="reloadBtn">Frissítés</button>
+        </div>
+
+        <div class="hint">
+          Szerkesztő mód nélkül csak nézni és megnyitni tudsz.  
+          Szerkesztő módban lehet zónát rajzolni, ikont lerakni, törölni.
+        </div>
       </div>
 
       <div class="panel">
@@ -291,14 +352,37 @@
         </div>
 
         <div class="small-buttons">
-          <button id="reloadBtn">Frissítés</button>
           <button id="resetFormBtn">Űrlap törlése</button>
+          <button id="clearFiltersBtn">Szűrők törlése</button>
         </div>
 
         <div class="hint">
           Zóna mód: kattints és húzd az egeret.<br>
           Ikon mód: kattints egy pontra.
         </div>
+      </div>
+
+      <div class="panel">
+        <h2>Szűrés</h2>
+
+        <label>Zónák szűrése</label>
+        <select id="zoneFilter">
+          <option value="all">Összes</option>
+          <option value="green">Csak zöld</option>
+          <option value="yellow">Csak sárga</option>
+          <option value="red">Csak piros</option>
+        </select>
+
+        <label>Ikonok szűrése</label>
+        <select id="markerFilter">
+          <option value="all">Összes</option>
+          <option value="loot">Csak loot</option>
+          <option value="weapon">Csak fegyver</option>
+          <option value="car">Csak jármű</option>
+          <option value="danger">Csak veszély</option>
+          <option value="house">Csak épület</option>
+          <option value="money">Csak pénz</option>
+        </select>
       </div>
 
       <div class="panel">
@@ -346,6 +430,11 @@
     let previewRect = null;
     let ignoreNextClick = false;
     let refreshTimer = null;
+    let editMode = false;
+    let showConfig = false;
+
+    let zonesData = [];
+    let markersData = [];
 
     const supabaseUrlEl = document.getElementById("supabaseUrl");
     const supabaseKeyEl = document.getElementById("supabaseKey");
@@ -357,8 +446,16 @@
     const connectBtn = document.getElementById("connectBtn");
     const reloadBtn = document.getElementById("reloadBtn");
     const resetFormBtn = document.getElementById("resetFormBtn");
+    const clearFiltersBtn = document.getElementById("clearFiltersBtn");
     const statusBox = document.getElementById("statusBox");
     const toolButtons = document.querySelectorAll(".tool-button");
+    const toggleEditBtn = document.getElementById("toggleEditBtn");
+    const toggleConfigBtn = document.getElementById("toggleConfigBtn");
+    const editModePill = document.getElementById("editModePill");
+    const configModePill = document.getElementById("configModePill");
+    const configFields = document.getElementById("configFields");
+    const zoneFilterEl = document.getElementById("zoneFilter");
+    const markerFilterEl = document.getElementById("markerFilter");
 
     const STORAGE_KEYS = {
       url: "gta_map_supabase_url",
@@ -415,12 +512,12 @@
 
     function getZoneStyle(color) {
       if (color === "green") {
-        return { color: "#1f8f45", fillColor: "#2ecc71", fillOpacity: 0.28, weight: 2 };
+        return { color: "#2fbf71", fillColor: "#39d98a", fillOpacity: 0.22, weight: 2 };
       }
       if (color === "yellow") {
-        return { color: "#b58b00", fillColor: "#f1c40f", fillOpacity: 0.30, weight: 2 };
+        return { color: "#d4a017", fillColor: "#ffd166", fillOpacity: 0.24, weight: 2 };
       }
-      return { color: "#b93232", fillColor: "#e74c3c", fillOpacity: 0.28, weight: 2 };
+      return { color: "#e05252", fillColor: "#ff6b6b", fillOpacity: 0.22, weight: 2 };
     }
 
     function getMarkerEmoji(type) {
@@ -443,6 +540,20 @@
         iconAnchor: [17, 17],
         popupAnchor: [0, -16]
       });
+    }
+
+    function updateEditUi() {
+      editModePill.textContent = editMode ? "bekapcsolva" : "kikapcsolva";
+      editModePill.classList.toggle("on", editMode);
+      toggleEditBtn.classList.toggle("active", editMode);
+    }
+
+    function updateConfigUi() {
+      configFields.classList.toggle("hidden", !showConfig);
+      configModePill.textContent = showConfig ? "látható" : "rejtett";
+      configModePill.classList.toggle("on", showConfig);
+      toggleConfigBtn.classList.toggle("active", showConfig);
+      toggleConfigBtn.textContent = showConfig ? "Supabase mezők elrejtése" : "Supabase mezők mutatása";
     }
 
     function setMode(mode) {
@@ -470,6 +581,14 @@
     }
 
     function zonePopupHtml(zone) {
+      let actions = "";
+      if (editMode) {
+        actions =
+          '<div class="popup-actions">' +
+          '<button onclick="deleteZone(' + zone.id + ')">Zóna törlése</button>' +
+          "</div>";
+      }
+
       return (
         '<div class="popup-meta">' +
         "<strong>Zóna</strong><br>" +
@@ -477,13 +596,20 @@
         "Címke: " + escapeHtml(zone.label || "-") + "<br>" +
         "Megjegyzés: " + escapeHtml(zone.note || "-") + "<br>" +
         "Jelölte: " + escapeHtml(zone.author || "ismeretlen") + "<br>" +
-        '<div class="popup-actions">' +
-        '<button onclick="deleteZone(' + zone.id + ')">Zóna törlése</button>' +
-        "</div></div>"
+        actions +
+        "</div>"
       );
     }
 
     function markerPopupHtml(marker) {
+      let actions = "";
+      if (editMode) {
+        actions =
+          '<div class="popup-actions">' +
+          '<button onclick="deleteMarker(' + marker.id + ')">Ikon törlése</button>' +
+          "</div>";
+      }
+
       return (
         '<div class="popup-meta">' +
         "<strong>" + escapeHtml(getMarkerEmoji(marker.icon_type)) + " Ikonpont</strong><br>" +
@@ -491,16 +617,27 @@
         "Címke: " + escapeHtml(marker.label || "-") + "<br>" +
         "Megjegyzés: " + escapeHtml(marker.note || "-") + "<br>" +
         "Jelölte: " + escapeHtml(marker.author || "ismeretlen") + "<br>" +
-        '<div class="popup-actions">' +
-        '<button onclick="deleteMarker(' + marker.id + ')">Ikon törlése</button>' +
-        "</div></div>"
+        actions +
+        "</div>"
       );
     }
 
-    function renderZones(zones) {
+    function getFilteredZones() {
+      const zoneFilter = zoneFilterEl.value;
+      if (zoneFilter === "all") return zonesData;
+      return zonesData.filter(z => z.color === zoneFilter);
+    }
+
+    function getFilteredMarkers() {
+      const markerFilter = markerFilterEl.value;
+      if (markerFilter === "all") return markersData;
+      return markersData.filter(m => m.icon_type === markerFilter);
+    }
+
+    function renderZones() {
       zonesLayer.clearLayers();
 
-      zones.forEach(function (zone) {
+      getFilteredZones().forEach(function (zone) {
         const rect = L.rectangle(
           [
             [zone.y, zone.x],
@@ -514,10 +651,10 @@
       });
     }
 
-    function renderMarkers(markers) {
+    function renderMarkers() {
       markersLayer.clearLayers();
 
-      markers.forEach(function (marker) {
+      getFilteredMarkers().forEach(function (marker) {
         const m = L.marker([marker.y, marker.x], {
           icon: createEmojiIcon(marker.icon_type)
         });
@@ -525,6 +662,11 @@
         m.bindPopup(markerPopupHtml(marker));
         m.addTo(markersLayer);
       });
+    }
+
+    function rerenderAll() {
+      renderZones();
+      renderMarkers();
     }
 
     async function loadAllData(showStatus = true) {
@@ -549,15 +691,16 @@
         return false;
       }
 
-      renderZones(zonesRes.data || []);
-      renderMarkers(markersRes.data || []);
+      zonesData = zonesRes.data || [];
+      markersData = markersRes.data || [];
+      rerenderAll();
 
       if (showStatus) {
         setStatus(
           "Betöltve: " +
-          (zonesRes.data || []).length +
+          zonesData.length +
           " zóna, " +
-          (markersRes.data || []).length +
+          markersData.length +
           " ikon."
         );
       }
@@ -588,9 +731,9 @@
 
         setStatus(
           "Sikeres csatlakozás. Betöltve: " +
-          zonesLayer.getLayers().length +
+          zonesData.length +
           " zóna, " +
-          markersLayer.getLayers().length +
+          markersData.length +
           " ikon."
         );
 
@@ -605,6 +748,11 @@
     async function createZoneFromBounds(a, b) {
       if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
+        return;
+      }
+
+      if (!editMode) {
+        setStatus("Kapcsold be a Szerkesztő módot.", true);
         return;
       }
 
@@ -645,6 +793,11 @@
     async function createMarker(latlng) {
       if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
+        return;
+      }
+
+      if (!editMode) {
+        setStatus("Kapcsold be a Szerkesztő módot.", true);
         return;
       }
 
@@ -695,7 +848,7 @@
           markersLayer = L.layerGroup().addTo(map);
 
           map.on("mousedown", function (e) {
-            if (currentMode !== "zone") return;
+            if (currentMode !== "zone" || !editMode) return;
             isDrawingZone = true;
             drawStart = e.latlng;
             ignoreNextClick = false;
@@ -712,12 +865,12 @@
           });
 
           map.on("mousemove", function (e) {
-            if (currentMode !== "zone" || !isDrawingZone || !drawStart || !previewRect) return;
+            if (currentMode !== "zone" || !editMode || !isDrawingZone || !drawStart || !previewRect) return;
             previewRect.setBounds(L.latLngBounds(drawStart, e.latlng));
           });
 
           map.on("mouseup", async function (e) {
-            if (currentMode !== "zone" || !isDrawingZone || !drawStart) return;
+            if (currentMode !== "zone" || !editMode || !isDrawingZone || !drawStart) return;
 
             isDrawingZone = false;
 
@@ -744,7 +897,7 @@
               return;
             }
 
-            if (currentMode === "marker") {
+            if (currentMode === "marker" && editMode) {
               await createMarker(e.latlng);
             }
           });
@@ -773,7 +926,7 @@
     }
 
     window.deleteZone = async function (id) {
-      if (!db) return;
+      if (!db || !editMode) return;
       if (!confirm("Biztos törlöd ezt a zónát?")) return;
 
       setStatus("Zóna törlése...");
@@ -790,7 +943,7 @@
     };
 
     window.deleteMarker = async function (id) {
-      if (!db) return;
+      if (!db || !editMode) return;
       if (!confirm("Biztos törlöd ezt az ikont?")) return;
 
       setStatus("Ikon törlése...");
@@ -822,8 +975,35 @@
       setStatus("Az űrlap mezők törölve.");
     });
 
+    clearFiltersBtn.addEventListener("click", function () {
+      zoneFilterEl.value = "all";
+      markerFilterEl.value = "all";
+      rerenderAll();
+      setStatus("A szűrők törölve.");
+    });
+
+    zoneFilterEl.addEventListener("change", function () {
+      rerenderAll();
+    });
+
+    markerFilterEl.addEventListener("change", function () {
+      rerenderAll();
+    });
+
     connectBtn.addEventListener("click", function () {
       connectSupabase();
+    });
+
+    toggleEditBtn.addEventListener("click", function () {
+      editMode = !editMode;
+      updateEditUi();
+      rerenderAll();
+      setStatus(editMode ? "Szerkesztő mód bekapcsolva." : "Szerkesztő mód kikapcsolva.");
+    });
+
+    toggleConfigBtn.addEventListener("click", function () {
+      showConfig = !showConfig;
+      updateConfigUi();
     });
 
     authorInput.addEventListener("input", saveLocalConfig);
@@ -832,6 +1012,8 @@
 
     async function bootstrap() {
       restoreLocalConfig();
+      updateEditUi();
+      updateConfigUi();
       setMode("pan");
 
       try {
