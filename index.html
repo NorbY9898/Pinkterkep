@@ -159,6 +159,7 @@
       font-size: 13px;
       color: #c8d2dc;
       min-height: 40px;
+      white-space: pre-line;
     }
 
     .map-wrap {
@@ -209,6 +210,14 @@
       margin-top: 10px;
     }
 
+    .good {
+      color: #8fe3a7;
+    }
+
+    .warn {
+      color: #ffd28a;
+    }
+
     @media (max-width: 940px) {
       .app {
         grid-template-columns: 1fr;
@@ -238,14 +247,14 @@
       <div class="panel">
         <h2>Kapcsolat / adatbázis</h2>
         <label>Supabase URL</label>
-        <input id="supabaseUrl" type="text" placeholder="https://...supabase.co" />
+        <input id="supabaseUrl" type="text" />
 
-        <label>Supabase anon key</label>
-        <textarea id="supabaseKey" placeholder="Ide jön az anon kulcs"></textarea>
+        <label>Supabase publishable key</label>
+        <textarea id="supabaseKey"></textarea>
 
         <button id="connectBtn">Kapcsolódás</button>
         <div class="hint">
-          Ezeket egyszer beírod, utána a böngésző elmenti helyben ugyanazon az eszközön.
+          A mezők már ki vannak töltve a projekted adataival.
         </div>
       </div>
 
@@ -299,7 +308,7 @@
         </div>
 
         <div class="hint">
-          Zóna mód: kattints és húzd az egeret. <br>
+          Zóna mód: kattints és húzd az egeret.<br>
           Ikon mód: kattints egy pontba.
         </div>
       </div>
@@ -321,7 +330,7 @@
 
       <div class="panel">
         <h2>Állapot</h2>
-        <div id="statusBox" class="status">Add meg a Supabase adatokat, majd nyomd meg a Kapcsolódás gombot.</div>
+        <div id="statusBox" class="status">Indításra kész.</div>
       </div>
     </aside>
 
@@ -334,6 +343,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    const SUPABASE_URL_DEFAULT = "https://mypjldhrwovbuhwzmsw.supabase.co";
+    const SUPABASE_KEY_DEFAULT = "sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ";
+
     const MAP_IMAGE = 'gta-map.jpg';
     const MAP_WIDTH = 4096;
     const MAP_HEIGHT = 4096;
@@ -397,8 +409,8 @@
     }
 
     function restoreLocalConfig() {
-      supabaseUrlEl.value = localStorage.getItem(STORAGE_KEYS.url) || '';
-      supabaseKeyEl.value = localStorage.getItem(STORAGE_KEYS.key) || '';
+      supabaseUrlEl.value = localStorage.getItem(STORAGE_KEYS.url) || SUPABASE_URL_DEFAULT;
+      supabaseKeyEl.value = localStorage.getItem(STORAGE_KEYS.key) || SUPABASE_KEY_DEFAULT;
       authorInput.value = localStorage.getItem(STORAGE_KEYS.author) || '';
     }
 
@@ -482,8 +494,8 @@
         <div class="popup-meta">
           <strong>Zóna</strong><br>
           Szín: ${escapeHtml(zone.color)}<br>
-          Címke: ${escapeHtml(zone.label || '-') }<br>
-          Megjegyzés: ${escapeHtml(zone.note || '-') }<br>
+          Címke: ${escapeHtml(zone.label || '-')}<br>
+          Megjegyzés: ${escapeHtml(zone.note || '-')}<br>
           Jelölte: ${escapeHtml(zone.author || 'ismeretlen')}<br>
           <div class="popup-actions">
             <button onclick="deleteZone(${zone.id})">Zóna törlése</button>
@@ -497,8 +509,8 @@
         <div class="popup-meta">
           <strong>${escapeHtml(getMarkerEmoji(marker.icon_type))} Ikonpont</strong><br>
           Típus: ${escapeHtml(marker.icon_type)}<br>
-          Címke: ${escapeHtml(marker.label || '-') }<br>
-          Megjegyzés: ${escapeHtml(marker.note || '-') }<br>
+          Címke: ${escapeHtml(marker.label || '-')}<br>
+          Megjegyzés: ${escapeHtml(marker.note || '-')}<br>
           Jelölte: ${escapeHtml(marker.author || 'ismeretlen')}<br>
           <div class="popup-actions">
             <button onclick="deleteMarker(${marker.id})">Ikon törlése</button>
@@ -545,13 +557,13 @@
 
       if (zonesRes.error) {
         console.error(zonesRes.error);
-        setStatus('Hiba a zónák betöltésekor.', true);
+        setStatus('Hiba a zónák betöltésekor. Ellenőrizd, hogy létrehoztad-e a zones táblát és ki van-e kapcsolva az RLS.', true);
         return;
       }
 
       if (markersRes.error) {
         console.error(markersRes.error);
-        setStatus('Hiba az ikonok betöltésekor.', true);
+        setStatus('Hiba az ikonok betöltésekor. Ellenőrizd, hogy létrehoztad-e a markers táblát és ki van-e kapcsolva az RLS.', true);
         return;
       }
 
@@ -565,7 +577,7 @@
       const key = supabaseKeyEl.value.trim();
 
       if (!url || !key) {
-        setStatus('Add meg a Supabase URL-t és az anon kulcsot.', true);
+        setStatus('Hiányzik a Supabase URL vagy a publishable key.', true);
         return;
       }
 
@@ -619,7 +631,7 @@
       const { error } = await supabase.from('zones').insert(payload);
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült elmenteni a zónát.', true);
+        setStatus('Nem sikerült elmenteni a zónát. Ellenőrizd az RLS-t és a zones tábla szerkezetét.', true);
         return;
       }
 
@@ -649,7 +661,7 @@
 
       if (error) {
         console.error(error);
-        setStatus('Nem sikerült elmenteni az ikont.', true);
+        setStatus('Nem sikerült elmenteni az ikont. Ellenőrizd az RLS-t és a markers tábla szerkezetét.', true);
         return;
       }
 
@@ -743,7 +755,7 @@
     setMode('pan');
 
     if (supabaseUrlEl.value && supabaseKeyEl.value) {
-      setStatus('Mentett Supabase adatok megtalálva. Nyomj a Kapcsolódás gombra.');
+      setStatus('A Supabase adatok be vannak állítva. Nyomj a Kapcsolódás gombra, majd ha kell, hozd létre az SQL táblákat.');
     }
   </script>
 </body>
