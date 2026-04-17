@@ -202,6 +202,11 @@
       width: 100%;
       height: 100%;
       background: #0a0f14;
+      cursor: default;
+    }
+
+    #map.draw-mode {
+      cursor: crosshair;
     }
 
     .custom-emoji-icon {
@@ -425,8 +430,8 @@
         </div>
 
         <div class="hint">
-          Szerkesztő módban lehet zónát rajzolni, ikont lerakni és törölni.  
-          Kikapcsolva csak megtekintésre szolgál.
+          Szerkesztő módban lehet zónát rajzolni, ikont lerakni és törölni.<br>
+          Free draw módban húzd az egeret, mint Paintben.
         </div>
       </div>
 
@@ -434,7 +439,7 @@
         <h2>Eszköz</h2>
         <div class="tool-grid">
           <button class="tool-button active" data-mode="pan">Mozgatás</button>
-          <button class="tool-button" data-mode="zone">Zóna rajzolás</button>
+          <button class="tool-button" data-mode="zone">Free draw zóna</button>
           <button class="tool-button" data-mode="marker">Ikon lerakás</button>
           <button class="tool-button" data-mode="inspect">Megnyitás</button>
         </div>
@@ -480,7 +485,7 @@
         </div>
 
         <div class="hint">
-          Zóna mód: kattints és húzd az egeret.<br>
+          Zóna mód: nyomd le az egeret és húzd körbe a területet.<br>
           Ikon mód: kattints egy pontra.
         </div>
       </div>
@@ -550,7 +555,7 @@
   <script>
     const MAP_IMAGE = "gta-map.jpg";
     const AUTO_REFRESH_MS = 15000;
-    const DEFAULT_ZONE_MIN_SIZE = 15;
+    const MIN_FREE_DRAW_POINTS = 6;
 
     const SUPABASE_URL = "https://mypljdhrwvobhuwhzmsw.supabase.co";
     const SUPABASE_KEY = "sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ";
@@ -561,12 +566,13 @@
     let markersLayer = null;
     let mapReady = false;
     let currentMode = "pan";
-    let isDrawingZone = false;
-    let drawStart = null;
-    let previewRect = null;
-    let ignoreNextClick = false;
     let refreshTimer = null;
     let editMode = false;
+
+    let isFreeDrawing = false;
+    let freeDrawPoints = [];
+    let freeDrawPreview = null;
+    let suppressNextClick = false;
 
     let zonesData = [];
     let markersData = [];
@@ -589,6 +595,7 @@
     const markerFilterEl = document.getElementById("markerFilter");
     const itemsList = document.getElementById("itemsList");
     const searchInput = document.getElementById("searchInput");
+    const mapEl = document.getElementById("map");
 
     const STORAGE_KEYS = {
       author: "gta_map_author"
@@ -641,6 +648,28 @@
       };
     }
 
+    function simplifyPoints(points, step = 3) {
+      if (!Array.isArray(points) || points.length <= 10) return points || [];
+      const out = [];
+      for (let i = 0; i < points.length; i += step) {
+        out.push(points[i]);
+      }
+      if (points.length && out[out.length - 1] !== points[points.length - 1]) {
+        out.push(points[points.length - 1]);
+      }
+      return out;
+    }
+
+    function ensureClosedPolygon(points) {
+      if (!points.length) return points;
+      const first = points[0];
+      const last = points[points.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        points.push([first[0], first[1]]);
+      }
+      return points;
+    }
+
     function getZoneStyle(color) {
       if (color === "green") {
         return { color: "#2fbf71", fillColor: "#39d98a", fillOpacity: 0.22, weight: 2 };
@@ -679,6 +708,23 @@
       toggleEditBtn.classList.toggle("active", editMode);
     }
 
+    function updateCursorUi() {
+      if (currentMode === "zone" && editMode) {
+        mapEl.classList.add("draw-mode");
+      } else {
+        mapEl.classList.remove("draw-mode");
+      }
+    }
+
+    function stopFreeDrawPreview() {
+      isFreeDrawing = false;
+      freeDrawPoints = [];
+      if (freeDrawPreview) {
+        map.removeLayer(freeDrawPreview);
+        freeDrawPreview = null;
+      }
+    }
+
     function setMode(mode) {
       currentMode = mode;
 
@@ -694,13 +740,30 @@
         map.dragging.disable();
       }
 
-      if (previewRect) {
-        map.removeLayer(previewRect);
-        previewRect = null;
+      stopFreeDrawPreview();
+      updateCursorUi();
+    }
+
+    function getZoneBounds(zone) {
+      if (Array.isArray(zone.points) && zone.points.length > 2) {
+        return L.latLngBounds(zone.points.map(function (p) {
+          return L.latLng(p[0], p[1]);
+        }));
       }
 
-      isDrawingZone = false;
-      drawStart = null;
+      if (
+        typeof zone.x === "number" &&
+        typeof zone.y === "number" &&
+        typeof zone.width === "number" &&
+        typeof zone.height === "number"
+      ) {
+        return L.latLngBounds([
+          [zone.y, zone.x],
+          [zone.y + zone.height, zone.x + zone.width]
+        ]);
+      }
+
+      return null;
     }
 
     function zonePopupHtml(zone) {
@@ -829,29 +892,42 @@
       zoneRefs.clear();
 
       getFilteredZones().forEach(function (zone) {
-        const rect = L.rectangle(
-          [
-            [zone.y, zone.x],
-            [zone.y + zone.height, zone.x + zone.width]
-          ],
-          getZoneStyle(zone.color)
-        );
+        let layer = null;
 
-        rect.__zoneColor = zone.color;
-        rect.bindPopup(zonePopupHtml(zone));
-        rect.addTo(zonesLayer);
-        zoneRefs.set(String(zone.id), rect);
+        if (Array.isArray(zone.points) && zone.points.length > 2) {
+          layer = L.polygon(zone.points, getZoneStyle(zone.color));
+        } else if (
+          typeof zone.x === "number" &&
+          typeof zone.y === "number" &&
+          typeof zone.width === "number" &&
+          typeof zone.height === "number"
+        ) {
+          layer = L.rectangle(
+            [
+              [zone.y, zone.x],
+              [zone.y + zone.height, zone.x + zone.width]
+            ],
+            getZoneStyle(zone.color)
+          );
+        }
 
-        rect.on("mouseover", function () {
+        if (!layer) return;
+
+        layer.__zoneColor = zone.color;
+        layer.bindPopup(zonePopupHtml(zone));
+        layer.addTo(zonesLayer);
+        zoneRefs.set(String(zone.id), layer);
+
+        layer.on("mouseover", function () {
           highlightZone(zone.id);
         });
 
-        rect.on("mouseout", function () {
+        layer.on("mouseout", function () {
           clearHighlights();
         });
 
-        rect.on("add", function () {
-          const el = rect.getElement && rect.getElement();
+        layer.on("add", function () {
+          const el = layer.getElement && layer.getElement();
           if (el && zone.color === "red") {
             el.classList.add("pulse-rect");
           }
@@ -976,6 +1052,7 @@
       renderZones();
       renderMarkers();
       renderItemsList();
+      updateCursorUi();
     }
 
     async function loadAllData(showStatus = true) {
@@ -989,7 +1066,7 @@
       const zonesRes = await db.from("zones").select("*").order("id", { ascending: true });
       if (zonesRes.error) {
         console.error(zonesRes.error);
-        setStatus("Hiba a zones betöltésekor. Ellenőrizd az RLS-t és az SQL táblát.", true);
+        setStatus("Hiba a zones betöltésekor. Ellenőrizd az SQL táblát és a points oszlopot.", true);
         return false;
       }
 
@@ -1045,7 +1122,7 @@
       }
     }
 
-    async function createZoneFromBounds(a, b) {
+    async function createZoneFromFreeDraw(points) {
       if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
         return;
@@ -1056,24 +1133,18 @@
         return;
       }
 
-      const meta = getCurrentPayloadMeta();
-      const x = Math.min(a.lng, b.lng);
-      const y = Math.min(a.lat, b.lat);
-      const width = Math.abs(a.lng - b.lng);
-      const height = Math.abs(a.lat - b.lat);
-
-      if (width < DEFAULT_ZONE_MIN_SIZE || height < DEFAULT_ZONE_MIN_SIZE) {
-        setStatus("A zóna túl kicsi lett.", true);
+      if (!Array.isArray(points) || points.length < MIN_FREE_DRAW_POINTS) {
+        setStatus("A rajz túl rövid lett. Rajzolj nagyobb területet.", true);
         return;
       }
 
-      setStatus("Zóna mentése...");
+      const meta = getCurrentPayloadMeta();
+      const simplified = ensureClosedPolygon(simplifyPoints(points, 3));
+
+      setStatus("Free draw zóna mentése...");
 
       const res = await db.from("zones").insert({
-        x: x,
-        y: y,
-        width: width,
-        height: height,
+        points: simplified,
         color: zoneColorEl.value,
         label: meta.label,
         note: meta.note,
@@ -1082,12 +1153,12 @@
 
       if (res.error) {
         console.error(res.error);
-        setStatus("Nem sikerült elmenteni a zónát.", true);
+        setStatus("Nem sikerült elmenteni a free draw zónát. Ellenőrizd, hogy van-e points jsonb oszlop.", true);
         return;
       }
 
       await loadAllData(false);
-      setStatus("A zóna el lett mentve.");
+      setStatus("A free draw zóna el lett mentve.");
     }
 
     async function createMarker(latlng) {
@@ -1128,10 +1199,8 @@
       const zone = zonesData.find(z => String(z.id) === String(id));
       if (!zone || !map) return;
 
-      const bounds = [
-        [zone.y, zone.x],
-        [zone.y + zone.height, zone.x + zone.width]
-      ];
+      const bounds = getZoneBounds(zone);
+      if (!bounds) return;
 
       highlightZone(id);
       map.fitBounds(bounds, { padding: [30, 30] });
@@ -1170,56 +1239,61 @@
 
           map.on("mousedown", function (e) {
             if (currentMode !== "zone" || !editMode) return;
-            isDrawingZone = true;
-            drawStart = e.latlng;
-            ignoreNextClick = false;
 
-            if (previewRect) {
-              map.removeLayer(previewRect);
-              previewRect = null;
+            isFreeDrawing = true;
+            suppressNextClick = false;
+            freeDrawPoints = [[e.latlng.lat, e.latlng.lng]];
+
+            if (freeDrawPreview) {
+              map.removeLayer(freeDrawPreview);
+              freeDrawPreview = null;
             }
 
-            previewRect = L.rectangle(
-              [drawStart, drawStart],
-              getZoneStyle(zoneColorEl.value)
-            ).addTo(map);
+            freeDrawPreview = L.polyline(freeDrawPoints, {
+              color: getZoneStyle(zoneColorEl.value).color,
+              weight: 3,
+              opacity: 0.9
+            }).addTo(map);
           });
 
           map.on("mousemove", function (e) {
-            if (currentMode !== "zone" || !editMode || !isDrawingZone || !drawStart || !previewRect) return;
-            previewRect.setBounds(L.latLngBounds(drawStart, e.latlng));
+            if (currentMode !== "zone" || !editMode || !isFreeDrawing || !freeDrawPreview) return;
+
+            freeDrawPoints.push([e.latlng.lat, e.latlng.lng]);
+            freeDrawPreview.setLatLngs(freeDrawPoints);
           });
 
-          map.on("mouseup", async function (e) {
-            if (currentMode !== "zone" || !editMode || !isDrawingZone || !drawStart) return;
+          map.on("mouseup", async function () {
+            if (currentMode !== "zone" || !editMode || !isFreeDrawing) return;
 
-            isDrawingZone = false;
+            isFreeDrawing = false;
+            suppressNextClick = true;
 
-            if (previewRect) {
-              map.removeLayer(previewRect);
-              previewRect = null;
+            const pointsToSave = freeDrawPoints.slice();
+
+            if (freeDrawPreview) {
+              map.removeLayer(freeDrawPreview);
+              freeDrawPreview = null;
             }
 
-            const movedEnough =
-              Math.abs(drawStart.lng - e.latlng.lng) >= DEFAULT_ZONE_MIN_SIZE ||
-              Math.abs(drawStart.lat - e.latlng.lat) >= DEFAULT_ZONE_MIN_SIZE;
-
-            if (movedEnough) {
-              ignoreNextClick = true;
-              await createZoneFromBounds(drawStart, e.latlng);
-            }
-
-            drawStart = null;
+            freeDrawPoints = [];
+            await createZoneFromFreeDraw(pointsToSave);
           });
 
           map.on("click", async function (e) {
-            if (ignoreNextClick) {
-              ignoreNextClick = false;
+            if (suppressNextClick) {
+              suppressNextClick = false;
               return;
             }
 
             if (currentMode === "marker" && editMode) {
               await createMarker(e.latlng);
+            }
+          });
+
+          map.on("mouseout", function () {
+            if (isFreeDrawing && currentMode === "zone") {
+              // hagyjuk futni, csak ne zárjuk le automatikusan
             }
           });
 
@@ -1337,6 +1411,7 @@
     toggleEditBtn.addEventListener("click", function () {
       editMode = !editMode;
       updateEditUi();
+      stopFreeDrawPreview();
       rerenderAll();
       setStatus(editMode ? "Szerkesztő mód bekapcsolva." : "Szerkesztő mód kikapcsolva.");
     });
