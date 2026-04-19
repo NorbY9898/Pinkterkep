@@ -223,7 +223,7 @@
     }
 
     .leaflet-popup-content {
-      min-width: 220px;
+      min-width: 240px;
     }
 
     .popup-meta {
@@ -337,6 +337,12 @@
       background: rgba(255,107,107,0.08);
     }
 
+    .tag.has-image {
+      color: #9fd7ff;
+      border-color: rgba(120, 190, 255, 0.35);
+      background: rgba(120, 190, 255, 0.08);
+    }
+
     .list-actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -368,6 +374,34 @@
       0%   { opacity: 0.45; }
       50%  { opacity: 1; }
       100% { opacity: 0.45; }
+    }
+
+    .popup-image-wrap {
+      margin-top: 10px;
+    }
+
+    .popup-image {
+      width: 100%;
+      display: block;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .file-note {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #aeb9c4;
+      word-break: break-word;
+    }
+
+    .thumb {
+      margin-top: 8px;
+      width: 100%;
+      max-height: 120px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      display: block;
     }
 
     @media (max-width: 1280px) {
@@ -479,6 +513,10 @@
           </div>
         </div>
 
+        <label>Kép csatolása ikonhoz</label>
+        <input id="markerImageInput" type="file" accept="image/*" />
+        <div id="markerImageNote" class="file-note">Nincs kiválasztott kép.</div>
+
         <div class="small-buttons">
           <button id="resetFormBtn">Űrlap törlése</button>
           <button id="clearFiltersBtn">Szűrők törlése</button>
@@ -486,7 +524,8 @@
 
         <div class="hint">
           Zóna mód: nyomd le az egeret és húzd körbe a területet.<br>
-          Ikon mód: kattints egy pontra.
+          Ikon mód: kattints egy pontra.<br>
+          Ha ikonhoz képet választasz, a kép a marker popupjában a megjegyzés alatt jelenik meg.
         </div>
       </div>
 
@@ -556,6 +595,8 @@
     const MAP_IMAGE = "gta-map.jpg";
     const AUTO_REFRESH_MS = 15000;
     const MIN_FREE_DRAW_POINTS = 6;
+    const STORAGE_BUCKET = "marker-images";
+    const MAX_IMAGE_SIZE_MB = 6;
 
     const SUPABASE_URL = "https://mypljdhrwvobhuwhzmsw.supabase.co";
     const SUPABASE_KEY = "sb_publishable_QWZu_4Zxa2njZbDFtYYyXw_M8dmyvCZ";
@@ -584,6 +625,8 @@
     const noteInput = document.getElementById("noteInput");
     const zoneColorEl = document.getElementById("zoneColor");
     const markerTypeEl = document.getElementById("markerType");
+    const markerImageInput = document.getElementById("markerImageInput");
+    const markerImageNote = document.getElementById("markerImageNote");
     const reloadBtn = document.getElementById("reloadBtn");
     const resetFormBtn = document.getElementById("resetFormBtn");
     const clearFiltersBtn = document.getElementById("clearFiltersBtn");
@@ -716,6 +759,15 @@
       }
     }
 
+    function updateImageNote() {
+      const file = markerImageInput.files && markerImageInput.files[0];
+      if (!file) {
+        markerImageNote.textContent = "Nincs kiválasztott kép.";
+        return;
+      }
+      markerImageNote.textContent = "Kiválasztva: " + file.name;
+    }
+
     function stopFreeDrawPreview() {
       isFreeDrawing = false;
       freeDrawPoints = [];
@@ -766,6 +818,12 @@
       return null;
     }
 
+    function getMarkerImageUrl(imagePath) {
+      if (!db || !imagePath) return "";
+      const result = db.storage.from(STORAGE_BUCKET).getPublicUrl(imagePath);
+      return result && result.data ? result.data.publicUrl : "";
+    }
+
     function zonePopupHtml(zone) {
       let actions = "";
       if (editMode) {
@@ -796,6 +854,15 @@
           "</div>";
       }
 
+      const imageUrl = marker.image_path ? getMarkerImageUrl(marker.image_path) : "";
+      const imageBlock = imageUrl
+        ? '<div class="popup-image-wrap">' +
+            '<a href="' + imageUrl + '" target="_blank" rel="noopener noreferrer">' +
+              '<img class="popup-image" src="' + imageUrl + '" alt="Helyszínkép">' +
+            '</a>' +
+          '</div>'
+        : "";
+
       return (
         '<div class="popup-meta">' +
         "<strong>" + escapeHtml(getMarkerEmoji(marker.icon_type)) + " Ikonpont</strong><br>" +
@@ -803,6 +870,7 @@
         "Címke: " + escapeHtml(marker.label || "-") + "<br>" +
         "Megjegyzés: " + escapeHtml(marker.note || "-") + "<br>" +
         "Jelölte: " + escapeHtml(marker.author || "ismeretlen") + "<br>" +
+        imageBlock +
         actions +
         "</div>"
       );
@@ -829,7 +897,7 @@
       return markersData.filter(function (m) {
         const matchesType = markerFilter === "all" || m.icon_type === markerFilter;
         const haystack = normalizeText(
-          [m.label, m.note, m.author, m.icon_type].join(" ")
+          [m.label, m.note, m.author, m.icon_type, m.image_path ? "kep" : ""].join(" ")
         );
         const matchesSearch = !q || haystack.includes(q);
         return matchesType && matchesSearch;
@@ -997,16 +1065,26 @@
       div.dataset.kind = "marker";
       div.dataset.id = marker.id;
 
+      const imageUrl = marker.image_path ? getMarkerImageUrl(marker.image_path) : "";
+      const imageTag = marker.image_path
+        ? '<span class="tag has-image">kép</span>'
+        : '<span class="tag">' + escapeHtml(marker.icon_type) + '</span>';
+
+      const thumbBlock = imageUrl
+        ? '<img class="thumb" src="' + imageUrl + '" alt="Marker kép">'
+        : '';
+
       div.innerHTML =
         '<div class="list-top">' +
           '<div class="list-title">' + escapeHtml(getMarkerEmoji(marker.icon_type)) + ' Ikon</div>' +
-          '<span class="tag">' + escapeHtml(marker.icon_type) + '</span>' +
+          imageTag +
         '</div>' +
         '<div class="list-sub">' +
           'Címke: ' + escapeHtml(marker.label || "üres") + '<br>' +
           'Jelölte: ' + escapeHtml(marker.author || "ismeretlen") + '<br>' +
           'Megjegyzés: ' + escapeHtml(marker.note || "-") +
         '</div>' +
+        thumbBlock +
         '<div class="list-actions">' +
           '<button data-action="focus-marker" data-id="' + marker.id + '">Megnyitás</button>' +
           (editMode ? '<button data-action="delete-marker" data-id="' + marker.id + '">Törlés</button>' : "") +
@@ -1073,7 +1151,7 @@
       const markersRes = await db.from("markers").select("*").order("id", { ascending: true });
       if (markersRes.error) {
         console.error(markersRes.error);
-        setStatus("Hiba a markers betöltésekor. Ellenőrizd az RLS-t és az SQL táblát.", true);
+        setStatus("Hiba a markers betöltésekor. Ellenőrizd az SQL táblát és az image_path oszlopot.", true);
         return false;
       }
 
@@ -1161,6 +1239,40 @@
       setStatus("A free draw zóna el lett mentve.");
     }
 
+    async function uploadMarkerImage(file) {
+      if (!db) throw new Error("Nincs aktív adatbázis kapcsolat.");
+
+      if (!file) return null;
+
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Csak képfájlt lehet feltölteni.");
+      }
+
+      if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+        throw new Error("A kép túl nagy. Maximum " + MAX_IMAGE_SIZE_MB + " MB lehet.");
+      }
+
+      const safeName = file.name
+        .toLowerCase()
+        .replace(/[^a-z0-9.\-_]/g, "-");
+
+      const filePath = "markers/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + safeName;
+
+      const uploadRes = await db.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type
+        });
+
+      if (uploadRes.error) {
+        throw uploadRes.error;
+      }
+
+      return filePath;
+    }
+
     async function createMarker(latlng) {
       if (!db) {
         setStatus("Előbb csatlakozz a Supabase-hez.", true);
@@ -1173,26 +1285,47 @@
       }
 
       const meta = getCurrentPayloadMeta();
+      const selectedFile = markerImageInput.files && markerImageInput.files[0]
+        ? markerImageInput.files[0]
+        : null;
 
-      setStatus("Ikon mentése...");
+      let uploadedPath = null;
 
-      const res = await db.from("markers").insert({
-        x: latlng.lng,
-        y: latlng.lat,
-        icon_type: markerTypeEl.value,
-        label: meta.label,
-        note: meta.note,
-        author: meta.author
-      });
+      try {
+        setStatus(selectedFile ? "Ikon és kép mentése..." : "Ikon mentése...");
 
-      if (res.error) {
-        console.error(res.error);
-        setStatus("Nem sikerült elmenteni az ikont.", true);
-        return;
+        if (selectedFile) {
+          uploadedPath = await uploadMarkerImage(selectedFile);
+        }
+
+        const res = await db.from("markers").insert({
+          x: latlng.lng,
+          y: latlng.lat,
+          icon_type: markerTypeEl.value,
+          label: meta.label,
+          note: meta.note,
+          author: meta.author,
+          image_path: uploadedPath
+        });
+
+        if (res.error) {
+          if (uploadedPath) {
+            await db.storage.from(STORAGE_BUCKET).remove([uploadedPath]);
+          }
+          console.error(res.error);
+          setStatus("Nem sikerült elmenteni az ikont.", true);
+          return;
+        }
+
+        markerImageInput.value = "";
+        updateImageNote();
+
+        await loadAllData(false);
+        setStatus(selectedFile ? "Az ikon és a kép el lett mentve." : "Az ikon el lett mentve.");
+      } catch (error) {
+        console.error(error);
+        setStatus(error.message || "Nem sikerült elmenteni az ikont vagy a képet.", true);
       }
-
-      await loadAllData(false);
-      setStatus("Az ikon el lett mentve.");
     }
 
     function focusZoneById(id) {
@@ -1291,12 +1424,6 @@
             }
           });
 
-          map.on("mouseout", function () {
-            if (isFreeDrawing && currentMode === "zone") {
-              // hagyjuk futni, csak ne zárjuk le automatikusan
-            }
-          });
-
           window.addEventListener("resize", function () {
             setTimeout(function () {
               map.invalidateSize();
@@ -1342,6 +1469,18 @@
       if (!confirm("Biztos törlöd ezt az ikont?")) return;
 
       setStatus("Ikon törlése...");
+
+      const marker = markersData.find(function (m) {
+        return String(m.id) === String(id);
+      });
+
+      if (marker && marker.image_path) {
+        const removeStorageRes = await db.storage.from(STORAGE_BUCKET).remove([marker.image_path]);
+        if (removeStorageRes.error) {
+          console.warn("A kép törlése Storage-ból nem sikerült:", removeStorageRes.error);
+        }
+      }
+
       const res = await db.from("markers").delete().eq("id", id);
 
       if (res.error) {
@@ -1385,6 +1524,8 @@
     resetFormBtn.addEventListener("click", function () {
       labelInput.value = "";
       noteInput.value = "";
+      markerImageInput.value = "";
+      updateImageNote();
       setStatus("Az űrlap mezők törölve.");
     });
 
@@ -1417,10 +1558,12 @@
     });
 
     authorInput.addEventListener("input", saveLocalConfig);
+    markerImageInput.addEventListener("change", updateImageNote);
 
     async function bootstrap() {
       restoreLocalConfig();
       updateEditUi();
+      updateImageNote();
       setMode("pan");
 
       try {
